@@ -17,6 +17,7 @@ dependencies:
   args: ^2.7.0
   path: ^1.9.1
   collection: ^1.19.1
+  meta: ^1.16.0
 
 dev_dependencies:
   lints: ^6.1.0

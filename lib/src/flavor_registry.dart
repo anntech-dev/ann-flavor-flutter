@@ -1,3 +1,4 @@
+import 'package:meta/meta.dart';
 import 'flavor_config.dart';
 import 'platform.dart';
 
@@ -35,4 +36,11 @@ class AnnFlavor {
 
   /// Convenience: the active flavor key.
   static String get key => current.key;
+
+  // ignore: invalid_annotation_target
+  @visibleForTesting
+  static void resetForTesting() {
+    _config = null;
+    _platform = null;
+  }
 }
