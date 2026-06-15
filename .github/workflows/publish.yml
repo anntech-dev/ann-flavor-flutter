@@ -1,0 +1,64 @@
+name: Publish to pub.dev
+run-name: "📦 ann_flutter_flavor ${{ github.ref_name }}"
+
+# Trigger: push a tag like  v0.1.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Publish to pub.dev
+    runs-on: ubuntu-latest
+
+    # Required for OIDC token (pub.dev automated publishing)
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Dart
+        uses: dart-lang/setup-dart@v1
+
+      # ── Extract version from tag (v0.1.0 → 0.1.0) ─────────────────────────
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Validate package
+        run: dart pub publish --dry-run
+
+      # ── Publish to pub.dev via OIDC (no token/secret needed) ───────────────
+      - name: Publish to pub.dev
+        run: dart pub publish --force
+
+      # ── Create GitHub Release ───────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2.3.2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "ann_flutter_flavor v${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## ann_flutter_flavor v${{ steps.version.outputs.VERSION }}
+
+            ### Install
+            ```yaml
+            dependencies:
+              ann_flutter_flavor: ^${{ steps.version.outputs.VERSION }}
+            ```
+
+            ### Sync flavors
+            ```sh
+            dart run ann_flutter_flavor sync
+            ```
+
+            ### Links
+            - [pub.dev](https://pub.dev/packages/ann_flutter_flavor)
+            - [Changelog](https://github.com/annaiappmanager/ann-flutter-flavor/blob/main/CHANGELOG.md)
+          draft: false
+          prerelease: false
