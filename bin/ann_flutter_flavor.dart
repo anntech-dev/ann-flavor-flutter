@@ -1,6 +1,7 @@
 import 'package:args/command_runner.dart';
 import '../lib_cli/commands/sync_command.dart';
 import '../lib_cli/commands/validate_command.dart';
+import '../lib_cli/commands/firebase_command.dart';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<void>(
@@ -8,7 +9,8 @@ Future<void> main(List<String> args) async {
     'ANN Flutter Flavor — manage flavors across Android, iOS, Web and Windows.',
   )
     ..addCommand(SyncCommand())
-    ..addCommand(ValidateCommand());
+    ..addCommand(ValidateCommand())
+    ..addCommand(FirebaseCommand());
 
   try {
     await runner.run(args);
