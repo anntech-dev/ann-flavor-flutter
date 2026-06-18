@@ -4,7 +4,7 @@ description: >-
   Reads annspec.yaml and generates typed Dart flavor code,
   wires the Gradle plugin for Android, and wires the CocoaPods
   plugin for iOS.
-version: 0.1.0
+version: 0.1.2
 homepage: https://github.com/anntech-dev/ann-flavor-flutter
 repository: https://github.com/anntech-dev/ann-flavor-flutter
 issue_tracker: https://github.com/anntech-dev/ann-flavor-flutter/issues
