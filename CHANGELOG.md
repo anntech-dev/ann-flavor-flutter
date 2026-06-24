@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Custom attributes
+- New `custom:` block in `annspec.yaml` — define named groups of typed key-value data at `default:`, `flavor:`, or `build_types:` level on any platform (Android, iOS, web, Windows)
+- 4-level cascade with deep merge: `default → default.buildType → flavor → flavor.buildType`
+- Dart codegen: generates a `custom(String group)` override in each flavor class; values are pre-resolved per build type at sync time — no runtime YAML parsing
+- New runtime class `AnnCustomGroup` — typed accessors: `string()`, `boolean()`, `integer()`, `decimal()`, `strings()`, raw `[]` operator, and `keys`
+- `AnnFlavor.init()` gains a `buildType` parameter (defaults to `'release'`); `AnnFlavor.buildType` getter added
+- Base `AnnFlavorConfig.custom()` now has a default implementation returning `null` — existing subclasses compile unchanged
+
+### Android
+- Per-flavor `AndroidManifest.xml` generation — creates manifest if missing
+- AdMob meta-data injection (`com.google.android.gms.ads.APPLICATION_ID` + GMS version) when `admob.gms_ads_id` is set on the flavor
+- `settings.gradle.kts` and `app/build.gradle.kts` injections now placed at end of their respective blocks
+- Injected lines preceded by `// Added by ann_flutter_flavor` comment
+
+### iOS
+- Per-flavor xcconfig generation — creates `ios/Flutter/<Flavor>Debug.xcconfig` and `ios/Flutter/<Flavor>Release.xcconfig` per flavor; patches existing files to add missing variables
+- xcconfig variables: `PRODUCT_BUNDLE_IDENTIFIER`, `APP_NAME`, `FLUTTER_BUILD_NAME`, `FLUTTER_BUILD_NUMBER`, `GAD_APPLICATION_IDENTIFIER` (when `admob:` is set)
+- `Info.plist` patching — replaces hardcoded values with `$(VARIABLE)` references for bundle ID, display name, version, build number, and AdMob ID
+
+### AdMob YAML structure
+- `gms_ads_id` is now nested under an `admob:` block at default, flavor, and build_type levels
+- Presence of `admob:` implies AdMob is enabled — no separate `admob_enabled` flag
+- `admob.gms_ads_id` is not exposed in the generated Dart runtime API — the native SDK reads it from the manifest/plist automatically
+
 ## 0.1.0
 
 - Initial release

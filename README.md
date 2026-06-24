@@ -3,9 +3,12 @@
 A CLI tool and runtime API for ANN Flutter flavor management.
 
 Reads a single `annspec.yaml` source-of-truth and:
-- Generates typed Dart flavor code (`ann_flavor.g.dart`)
-- Wires the Gradle plugin reference into Android build files
-- Wires the CocoaPods plugin reference into the iOS Podfile
+- Generates typed Dart flavor code (`lib/generated/ann_flavor.g.dart`)
+- Generates Firebase configuration scripts
+- Wires the Gradle plugin into Android build files (`settings.gradle.kts`, `app/build.gradle.kts`)
+- Generates per-flavor Android manifests with AdMob meta-data when configured
+- Generates per-flavor iOS xcconfig files and patches `Info.plist` with variable references
+- Wires the CocoaPods plugin into the iOS `Podfile`
 
 ---
 
@@ -22,102 +25,254 @@ dependencies:
 
 ## IDE Plugin
 
-The **ANN Flutter Flavor** plugin for Android Studio and IntelliJ IDEA lets you author and validate `annspec.yaml` visually — no need to write YAML by hand.
+The **ANN Flutter Flavor** plugin for Android Studio and IntelliJ IDEA lets you author and validate `annspec.yaml` visually.
 
-- **Guided form UI** for flavors, Firebase config, RevenueCat subscriptions, and Google Sign-In keys
-- **Spec validation** highlights missing or invalid fields before you sync
-- **One-click sync** via Tools → ANN Tools → Sync Spec, which calls this package under the hood
+- Guided form UI for flavors, Firebase config, RevenueCat subscriptions, Google Sign-In keys, and AdMob IDs
+- Spec validation highlights missing or invalid fields before you sync
+- One-click sync via **Tools → ANN Tools → Sync Spec**
 
-**Install:** Open Android Studio → Settings → Plugins → Marketplace → search **"ANN Flutter Flavor"**
+**Install:** Android Studio → Settings → Plugins → Marketplace → search **"ANN Flutter Flavor"**
 
-> Plugin ID: `dev.anntech.studio.flavorize`  
-> Source: [github.com/anntech-dev/ann-flavor-tooling](https://github.com/anntech-dev/ann-flavor-tooling)
-
-Once the plugin generates your `annspec.yaml`, run `dart run ann_flutter_flavor sync` to produce the Dart code and wire Android/iOS.
+> Plugin ID: `dev.anntech.studio.flavorize`
 
 ---
 
-## Setup
-
-### 1. Create `annspec.yaml` at the root of your Flutter project
+## annspec.yaml format
 
 ```yaml
-platforms:
+annai_app:
+
   android:
-    base_id: com.example
-    flavors:
-      - key: my_app
-        name: My App
-        id_suffix: .myapp
-        subscriptions:
-          - api_key: goog_XXXX
-            entitlement_ids: [standard, premium]
+    sdk:
+      minSdk: 23
+      compileSdk: 35
+      targetSdk: 35
+    default:
+      id: com.example.myapp
+      name: "My App"
+      version_name: 1.0.0
+      version_code: 10000
+      admob:                                      # optional — enables AdMob for all flavors
+        gms_ads_id: "ca-app-pub-XXXX~XXXXXXXXXX"
+      build_types:
+        release:
+          firebase:
+            project_id: "my-firebase-prod"
+            path: "firebase/android/prod"
+          auth:
+            clientId: "000000000000-release.apps.googleusercontent.com"
+            reversedClientId: "com.googleusercontent.apps.000000000000-release"
+        debug:
+          firebase:
+            project_id: "my-firebase-dev"
+            path: "firebase/android/dev"
+      custom:                                       # default-level custom attributes
+        revenuecat:
+          api_key: "rc_default_key"
+          entitlement_ids:
+            - standard
+        analytics:
+          enabled: true
+    flavor:
+      free:
+        id_suffix: .free
+        name: "My App Free"
+        main_file: "lib/flavors/main_free.dart"
+        admob:                                    # flavor-level override
+          gms_ads_id: "ca-app-pub-YYYY~YYYYYYYYYY"
+        in_app_subscription:
+          - apiKey: "goog_XXXX"
+            entitlementIds: ["standard"]
+        custom:
+          revenuecat:
+            api_key: "rc_free_key"               # overrides default; entitlement_ids falls through
+        build_types:
+          debug:
+            custom:
+              revenuecat:
+                api_key: "rc_free_debug_key"     # overrides free.release for debug builds
+      pro:
+        id_suffix: .pro
+        name: "My App Pro"
+        main_file: "lib/flavors/main_pro.dart"
+        custom:
+          revenuecat:
+            api_key: "rc_pro_key"
+            entitlement_ids:
+              - standard
+              - premium
 
   ios:
-    base_id: com.example
-    flavors:
-      - key: my_app
-        name: My App
-        id_suffix: .myapp
-        subscriptions:
-          - api_key: appl_XXXX
-            entitlement_ids: [standard, premium]
+    default:
+      id: com.example.myapp
+      name: "My App"
+      version_name: 1.0.0
+      version_code: 10000
+      team_id: "YOURTEAMID"
+      admob:                                      # optional — shared AdMob ID for iOS
+        gms_ads_id: "ca-app-pub-XXXX~XXXXXXXXXX"
+    flavor:
+      free:
+        id_suffix: .free
+        name: "My App Free"
+        main_file: "lib/flavors/main_free.dart"
+      pro:
+        id_suffix: .pro
+        name: "My App Pro"
+        main_file: "lib/flavors/main_pro.dart"
 ```
 
-### 2. Run the sync command
+### admob field cascade
 
-```sh
-dart run ann_flutter_flavor sync
-```
+`admob.gms_ads_id` resolves in priority order: **build_type → flavor → default**.
 
-This generates `lib/generated/ann_flavor.g.dart` with typed config classes for every flavor.
+- Set it once under `default:` to share one AdMob App ID across all flavors
+- Override under a specific `flavor:` to use a different ID for that flavor
+- Override under `flavor.build_types.<bt>:` for build-type-level control
+- **Presence of `admob:` enables AdMob** — no separate `admob_enabled` flag needed
 
-### 3. Call `setupFlavor` in each flavor entry point
-
-```dart
-// lib/flavors/main_my_app.dart
-import 'package:ann_flutter_flavor/ann_flutter_flavor.dart';
-import 'package:my_app/generated/ann_flavor.g.dart';
-
-void main() {
-  setupFlavor(AnnFlavorKey.myApp, _detectPlatform());
-  runApp(const MyApp());
-}
-```
-
-### 4. Access flavor data anywhere
-
-```dart
-AnnFlavor.current.name        // "My App"
-AnnFlavor.current.androidId   // "com.example.myapp"
-AnnFlavor.platform            // AnnPlatform.android
-AnnFlavor.current.subscriptions(AnnFlavor.platform)?.first.apiKey
-```
+AdMob is only applicable to **Android** and **iOS**. Web and Windows have no AdMob support.
 
 ---
 
 ## CLI Commands
 
-| Command | Description |
-|---------|-------------|
-| `dart run ann_flutter_flavor sync` | Generate flavor code and wire Android/iOS |
-| `dart run ann_flutter_flavor validate` | Validate `annspec.yaml` for missing required fields |
+### sync
 
-Both commands accept `-p <path>` to point at a Flutter project other than the current directory.
+```bash
+dart run ann_flutter_flavor sync
+dart run ann_flutter_flavor sync -p ../my_flutter_app
+```
+
+What it generates / patches:
+
+| File | Description |
+|------|-------------|
+| `lib/generated/ann_flavor.g.dart` | Typed `AnnFlavorConfig` subclass per flavor |
+| `lib/generated/scripts/firebase.sh` | `flutterfire configure` commands per flavor/platform/build-type |
+| `fastlane/Fastfile` + `fastlane_*.rb` | CI/CD lanes per platform |
+| `android/settings.gradle.kts` | Patches `mavenCentral()` + ANN plugin declaration |
+| `android/app/build.gradle.kts` | Patches `id("dev.anntech.flavorize")` |
+| `android/app/src/<flavor>/AndroidManifest.xml` | Per-flavor manifest; GMS Ads meta-data if `admob:` set |
+| `ios/Flutter/<Flavor>Debug.xcconfig` | Per-flavor debug xcconfig |
+| `ios/Flutter/<Flavor>Release.xcconfig` | Per-flavor release xcconfig |
+| `ios/Runner/Info.plist` | Patches keys to use `$(VARIABLE)` references |
+| `ios/Podfile` | Patches in CocoaPods plugin reference |
+
+### validate
+
+```bash
+dart run ann_flutter_flavor validate
+dart run ann_flutter_flavor validate -p ../my_flutter_app
+```
+
+Checks `annspec.yaml` for errors and warnings without writing any files. Useful in CI.
 
 ---
 
 ## Runtime API
 
+### Initialise in each flavor entry point
+
+```dart
+// lib/flavors/main_free.dart
+import 'package:ann_flutter_flavor/ann_flutter_flavor.dart';
+import 'package:my_app/generated/ann_flavor.g.dart';
+import 'dart:io';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  AnnFlavor.init(
+    config:    FreeFlavor(),
+    platform:  Platform.isAndroid ? AnnPlatform.android
+             : Platform.isIOS    ? AnnPlatform.ios
+             : AnnPlatform.web,
+    buildType: const String.fromEnvironment('BUILD_TYPE', defaultValue: 'release'),
+  );
+
+  runApp(const MyApp());
+}
+```
+
+Pass `--dart-define=BUILD_TYPE=debug` / `--dart-define=BUILD_TYPE=release` in your Flutter commands
+so `custom()` resolves the correct build-type override at runtime.
+
+### Access flavor data anywhere
+
+```dart
+AnnFlavor.key                                       // "free"
+AnnFlavor.current.name                              // "My App Free"
+AnnFlavor.current.androidId                         // "com.example.myapp.free"
+AnnFlavor.current.iosId                             // "com.example.myapp.free"
+AnnFlavor.platform                                  // AnnPlatform.android
+AnnFlavor.buildType                                 // "release" or "debug"
+
+// RevenueCat subscriptions
+final subs = AnnFlavor.current.subscriptions(AnnFlavor.platform);
+subs?.first.apiKey                                  // "goog_XXXX"
+subs?.first.entitlementIds                          // ["standard"]
+
+// Google Sign-In
+final auth = AnnFlavor.current.auth(AnnFlavor.platform);
+auth?.clientId                                      // release client ID
+final authDebug = AnnFlavor.current.authDebug(AnnFlavor.platform);
+authDebug?.clientId                                 // debug client ID
+
+// Custom attributes — resolves cascade + build type automatically
+AnnFlavor.current.custom('revenuecat')?.string('api_key')
+AnnFlavor.current.custom('revenuecat')?.strings('entitlement_ids')
+AnnFlavor.current.custom('analytics')?.boolean('enabled')
+```
+
+> **AdMob:** The AdMob App ID is injected natively into `AndroidManifest.xml` and
+> `Info.plist` by the `sync` command. The AdMob SDK reads it automatically — just call
+> `MobileAds.instance.initialize()`. No Dart API needed.
+
+### Custom attributes reference
+
+| Accessor | YAML type | Returns |
+|----------|-----------|---------|
+| `string(key)` | quoted string | `String?` |
+| `boolean(key)` | `true` / `false` | `bool?` |
+| `integer(key)` | integer number | `int?` |
+| `decimal(key)` | decimal number | `double?` |
+| `strings(key)` | YAML list | `List<String>?` |
+| `[key]` | any | `dynamic` |
+
+All accessors return `null` if the group doesn't exist or the key is missing.
+See [docs/custom-attributes.md](../../docs/custom-attributes.md) for the full cascade rules.
+
+### API reference
+
 | Symbol | Description |
 |--------|-------------|
-| `AnnFlavor.init(config:, platform:)` | Initialize (called by `setupFlavor`) |
-| `AnnFlavor.current` | The active `AnnFlavorConfig` |
-| `AnnFlavor.platform` | The active `AnnPlatform` |
+| `AnnFlavor.init(config:, platform:)` | Initialise once at app startup |
+| `AnnFlavor.current` | Active `AnnFlavorConfig` — throws if not initialised |
+| `AnnFlavor.platform` | Active `AnnPlatform` — throws if not initialised |
 | `AnnFlavor.key` | Shorthand for `AnnFlavor.current.key` |
+| `AnnFlavorConfig.key` | Flavor key string (e.g. `"free"`) |
+| `AnnFlavorConfig.name` | Display name |
+| `AnnFlavorConfig.androidId` | Full Android bundle ID |
+| `AnnFlavorConfig.iosId` | Full iOS bundle ID |
+| `AnnFlavorConfig.subscriptions(platform)` | List of `AnnSubscription` or null |
+| `AnnFlavorConfig.auth(platform)` | Release `AnnAuthConfig` or null |
+| `AnnFlavorConfig.authDebug(platform)` | Debug `AnnAuthConfig` or null |
 | `AnnPlatform` | `android`, `ios`, `web`, `windows` |
 | `AnnSubscription` | `apiKey` + `entitlementIds` |
 | `AnnAuthConfig` | `clientId` + `reversedClientId` |
+
+---
+
+## Build commands
+
+```bash
+flutter run   --flavor free -t lib/flavors/main_free.dart
+flutter run   --flavor pro  -t lib/flavors/main_pro.dart
+flutter build apk       --flavor free -t lib/flavors/main_free.dart
+flutter build appbundle --flavor pro  -t lib/flavors/main_pro.dart
+flutter build ipa       --flavor free -t lib/flavors/main_free.dart
+```
 
 ---
 
