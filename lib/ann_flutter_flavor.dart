@@ -16,5 +16,5 @@ library ann_flutter_flavor;
 export 'src/flavor_config.dart';
 export 'src/flavor_registry.dart';
 export 'src/platform.dart';
-export 'src/subscription.dart';
 export 'src/auth_config.dart';
+export 'src/custom_group.dart';

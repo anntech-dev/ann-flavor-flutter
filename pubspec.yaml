@@ -1,13 +1,27 @@
 name: ann_flutter_flavor
 description: >-
-  CLI tool and runtime API for ANN Flutter flavor management.
-  Reads annspec.yaml and generates typed Dart flavor code,
-  wires the Gradle plugin for Android, and wires the CocoaPods
-  plugin for iOS.
-version: 0.1.2
-homepage: https://github.com/anntech-dev/ann-flavor-flutter
+  CLI and runtime API for multi-flavor Flutter apps. Reads annspec.yaml,
+  generates typed Dart flavor classes, and wires Android Gradle and iOS
+  CocoaPods plugins — Firebase, signing, AdMob, RevenueCat included.
+version: 0.1.5
+homepage: https://anntech.dev/docs/ann-flutter-flavor-suite/flutter-overview
 repository: https://github.com/anntech-dev/ann-flavor-flutter
 issue_tracker: https://github.com/anntech-dev/ann-flavor-flutter/issues
+
+topics:
+  - flutter
+  - flavor
+  - build-configuration
+  - firebase
+  - codegen
+
+platforms:
+  android:
+  ios:
+  macos:
+  web:
+  linux:
+  windows:
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

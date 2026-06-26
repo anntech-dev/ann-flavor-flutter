@@ -1,0 +1,85 @@
+annai_app:
+
+  android:
+    default:
+      id: com.anntech.example.ann_flavor_example
+      version_name: 1.0.0
+      version_code: 10000
+
+      credentials:
+        signing:
+          key_file: "../keys/android/my_key.properties"   # not committed — keep outside repo
+
+      build_types:
+        release:
+          firebase:
+            file: "../firebase/android/prod/google-services.json"
+        debug:
+          firebase:
+            file: "../firebase/android/dev/google-services.json"
+
+    flavor:
+      free:
+        name: "Flavor Example (Free)"
+        main_file: "lib/flavors/main_free.dart"
+        id_suffix: .free
+        custom:
+          revenuecat:
+            api_key: "goog_free_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            entitlement_ids: ["standard"]
+        build_types:
+          debug:
+            custom:
+              revenuecat:
+                api_key: "goog_free_debug_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+      pro:
+        name: "Flavor Example (Pro)"
+        main_file: "lib/flavors/main_pro.dart"
+        id_suffix: .pro
+        custom:
+          revenuecat:
+            api_key: "goog_pro_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            entitlement_ids: ["standard", "premium"]
+        build_types:
+          debug:
+            custom:
+              revenuecat:
+                api_key: "goog_pro_debug_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+  ios:
+    default:
+      id: com.anntech.example.annFlavorExample
+      version_name: 1.0.0
+      version_code: 10000
+
+      credentials:
+        signing:
+          team_id: "XXXXXXXXXX"
+        app_store:
+          api_key: "../keys/ios/apple_api_key.json"
+
+      build_types:
+        release:
+          firebase:
+            file: "../firebase/ios/prod/GoogleService-Info.plist"
+        debug:
+          firebase:
+            file: "../firebase/ios/dev/GoogleService-Info.plist"
+
+    flavor:
+      free:
+        name: "Flavor Example (Free)"
+        main_file: "lib/flavors/main_free.dart"
+        id_suffix: .free
+        stores:
+          app_store:
+            apple_id: "1234567890"
+
+      pro:
+        name: "Flavor Example (Pro)"
+        main_file: "lib/flavors/main_pro.dart"
+        id_suffix: .pro
+        stores:
+          app_store:
+            apple_id: "0987654321"

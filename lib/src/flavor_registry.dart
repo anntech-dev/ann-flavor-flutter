@@ -10,8 +10,18 @@ class AnnFlavor {
   static AnnFlavorConfig? _config;
   static AnnPlatform? _platform;
 
+  /// Override the detected build type — **for testing only**.
+  ///
+  /// Set this before calling [init] in a test to force a specific build type
+  /// (`'debug'`, `'profile'`, or `'release'`). Always clear it in `tearDown`
+  /// via [resetForTesting].
+  // ignore: invalid_annotation_target
+  @visibleForTesting
+  static String? buildTypeOverride;
+
   /// Initialise with the active flavor config and detected platform.
-  /// Must be called before accessing [current] or [platform].
+  /// Build type is derived automatically from Dart compile-time constants
+  /// (dart.vm.product / dart.vm.profile) — no --dart-define required.
   static void init({
     required AnnFlavorConfig config,
     required AnnPlatform platform,
@@ -34,6 +44,17 @@ class AnnFlavor {
     return _platform!;
   }
 
+  /// The active build type derived from Dart's compile-time constants.
+  /// Returns `'release'` in release mode, `'profile'` in profile mode, `'debug'` otherwise.
+  static String get buildType {
+    if (buildTypeOverride != null) return buildTypeOverride!;
+    const isRelease = bool.fromEnvironment('dart.vm.product');
+    if (isRelease) return 'release';
+    const isProfile = bool.fromEnvironment('dart.vm.profile');
+    if (isProfile) return 'profile';
+    return 'debug';
+  }
+
   /// Convenience: the active flavor key.
   static String get key => current.key;
 
@@ -42,5 +63,6 @@ class AnnFlavor {
   static void resetForTesting() {
     _config = null;
     _platform = null;
+    buildTypeOverride = null;
   }
 }

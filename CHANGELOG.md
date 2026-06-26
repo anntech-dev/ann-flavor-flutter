@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.5
+
+### pub.dev quality improvements
+- `AnnFlavor.init()` no longer requires `buildType:` — build type is now derived automatically from Dart compile-time constants (`dart.vm.product` / `dart.vm.profile`); no `--dart-define` needed
+- Full dartdoc coverage on all public API classes and members: `AnnFlavor`, `AnnFlavorConfig`, `AnnPlatform`, `AnnAuthConfig`, `AnnCustomGroup`
+- Added `example/` — runnable Flutter app demonstrating `AnnFlavor.init`, `custom()` with RevenueCat, and all runtime getters
+- Package now declares support for all platforms: Android, iOS, macOS, Web, Linux, Windows
+- Added `topics` to pubspec: `flutter`, `flavor`, `build-configuration`, `firebase`, `codegen`
+
+## 0.1.4
 
 ### Custom attributes
 - New `custom:` block in `annspec.yaml` — define named groups of typed key-value data at `default:`, `flavor:`, or `build_types:` level on any platform (Android, iOS, web, Windows)

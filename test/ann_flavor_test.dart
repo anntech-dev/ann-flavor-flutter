@@ -3,22 +3,37 @@ import 'package:test/test.dart';
 
 // Minimal concrete flavor for testing — mirrors what annspec codegen produces.
 class _TestFlavor extends AnnFlavorConfig {
-  @override final String key = 'test_flavor';
-  @override final String name = 'Test App';
-  @override final String? androidId = 'com.example.test';
-  @override final String? iosId = 'com.example.test';
+  @override
+  final String key = 'test_flavor';
+  @override
+  final String name = 'Test App';
+  @override
+  final String? androidId = 'com.example.test';
+  @override
+  final String? iosId = 'com.example.test';
 
-  @override String? adsId(AnnPlatform platform) =>
-      platform == AnnPlatform.android ? 'ca-app-pub-test' : null;
-
-  @override List<AnnSubscription>? subscriptions(AnnPlatform platform) =>
-      [const AnnSubscription(apiKey: 'test_key', entitlementIds: ['standard'])];
-
-  @override AnnAuthConfig? auth(AnnPlatform platform) =>
+  @override
+  AnnAuthConfig? auth(AnnPlatform platform) =>
       const AnnAuthConfig(clientId: 'client-id-release');
 
-  @override AnnAuthConfig? authDebug(AnnPlatform platform) =>
+  @override
+  AnnAuthConfig? authDebug(AnnPlatform platform) =>
       const AnnAuthConfig(clientId: 'client-id-debug');
+
+  @override
+  AnnCustomGroup? custom(String group) => switch (group) {
+        'revenuecat' => switch (AnnFlavor.buildType) {
+            'debug' => AnnCustomGroup({
+                'api_key': 'rc_debug',
+                'entitlement_ids': ['standard']
+              }),
+            _ => AnnCustomGroup({
+                'api_key': 'rc_release',
+                'entitlement_ids': ['standard', 'premium']
+              }),
+          },
+        _ => null,
+      };
 }
 
 void main() {
@@ -33,6 +48,18 @@ void main() {
       AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
       expect(AnnFlavor.current.key, 'test_flavor');
       expect(AnnFlavor.platform, AnnPlatform.android);
+    });
+
+    test('buildType returns debug in test environment', () {
+      AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
+      // kDebugMode is true in test runs, so buildType resolves to 'debug'
+      expect(AnnFlavor.buildType, 'debug');
+    });
+
+    test('buildTypeOverride allows forcing a specific build type in tests', () {
+      AnnFlavor.buildTypeOverride = 'release';
+      AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
+      expect(AnnFlavor.buildType, 'release');
     });
 
     test('key shortcut returns flavor key', () {
@@ -64,19 +91,6 @@ void main() {
       expect(flavor.iosId, 'com.example.test');
     });
 
-    test('adsId returns value for android, null for ios', () {
-      expect(flavor.adsId(AnnPlatform.android), 'ca-app-pub-test');
-      expect(flavor.adsId(AnnPlatform.ios), isNull);
-    });
-
-    test('subscriptions returns list with one entry', () {
-      final subs = flavor.subscriptions(AnnPlatform.android);
-      expect(subs, isNotNull);
-      expect(subs!.length, 1);
-      expect(subs.first.apiKey, 'test_key');
-      expect(subs.first.entitlementIds, ['standard']);
-    });
-
     test('auth returns release clientId', () {
       final auth = flavor.auth(AnnPlatform.android);
       expect(auth?.clientId, 'client-id-release');
@@ -86,13 +100,56 @@ void main() {
       final auth = flavor.authDebug(AnnPlatform.android);
       expect(auth?.clientId, 'client-id-debug');
     });
+
+    test('custom returns null for unknown group', () {
+      AnnFlavor.init(config: flavor, platform: AnnPlatform.android);
+      expect(flavor.custom('unknown_group'), isNull);
+    });
   });
 
-  group('AnnSubscription', () {
-    test('toString includes apiKey and entitlementIds', () {
-      const sub = AnnSubscription(apiKey: 'key', entitlementIds: ['a', 'b']);
-      expect(sub.toString(), contains('key'));
-      expect(sub.toString(), contains('a'));
+  group('AnnCustomGroup', () {
+    test('returns release values when buildType is release', () {
+      AnnFlavor.buildTypeOverride = 'release';
+      AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
+      final group = AnnFlavor.current.custom('revenuecat');
+      expect(group, isNotNull);
+      expect(group!.string('api_key'), 'rc_release');
+      expect(group.strings('entitlement_ids'), ['standard', 'premium']);
+    });
+
+    test('returns debug values when buildType is debug', () {
+      AnnFlavor.buildTypeOverride = 'debug';
+      AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
+      final group = AnnFlavor.current.custom('revenuecat');
+      expect(group, isNotNull);
+      expect(group!.string('api_key'), 'rc_debug');
+      expect(group.strings('entitlement_ids'), ['standard']);
+    });
+
+    test('typed accessors return correct types', () {
+      const g = AnnCustomGroup({
+        'label': 'hello',
+        'enabled': true,
+        'count': 42,
+        'ratio': 3.14,
+        'tags': ['a', 'b'],
+      });
+      expect(g.string('label'), 'hello');
+      expect(g.boolean('enabled'), true);
+      expect(g.integer('count'), 42);
+      expect(g.decimal('ratio'), 3.14);
+      expect(g.strings('tags'), ['a', 'b']);
+    });
+
+    test('returns null for missing key', () {
+      const g = AnnCustomGroup({'x': 'y'});
+      expect(g.string('missing'), isNull);
+      expect(g.boolean('missing'), isNull);
+    });
+
+    test('keys returns all group keys', () {
+      const g = AnnCustomGroup({'a': 1, 'b': 2});
+      expect(g.keys, containsAll(['a', 'b']));
     });
   });
 
@@ -112,12 +169,14 @@ void main() {
   group('AnnPlatform', () {
     test('all 4 values exist', () {
       expect(AnnPlatform.values.length, 4);
-      expect(AnnPlatform.values, containsAll([
-        AnnPlatform.android,
-        AnnPlatform.ios,
-        AnnPlatform.web,
-        AnnPlatform.windows,
-      ]));
+      expect(
+          AnnPlatform.values,
+          containsAll([
+            AnnPlatform.android,
+            AnnPlatform.ios,
+            AnnPlatform.web,
+            AnnPlatform.windows,
+          ]));
     });
   });
 }
