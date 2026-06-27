@@ -43,7 +43,7 @@ class ValidateCommand extends Command<void> {
       return;
     }
 
-    final rawApp = rawDoc['annai_app'] as YamlMap?;
+    final rawApp = rawDoc['app'] as YamlMap?;
 
     for (final platform in spec.platforms) {
       _validatePlatform(platform, rawApp, errors, warnings);

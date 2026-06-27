@@ -40,7 +40,7 @@ The **ANN Flutter Flavor** plugin for Android Studio and IntelliJ IDEA lets you 
 ## annspec.yaml format
 
 ```yaml
-annai_app:
+app:
 
   android:
     sdk:

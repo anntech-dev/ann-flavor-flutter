@@ -11,7 +11,7 @@ class AnnspecReader {
       throw Exception('annspec.yaml not found at ${file.path}');
     }
     final doc = loadYaml(file.readAsStringSync()) as YamlMap;
-    final app = doc['annai_app'] as YamlMap;
+    final app = doc['app'] as YamlMap;
     final platforms = <AnnspecPlatform>[];
 
     for (final platformKey in ['android', 'ios', 'web', 'windows']) {

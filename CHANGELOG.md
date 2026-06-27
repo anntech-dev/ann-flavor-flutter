@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+**New `summary` command** — print the fully resolved spec before you sync.
+
+```bash
+dart run ann_flutter_flavor summary
+```
+
+Shows every flavor's effective id, name, version, firebase, auth, admob, stores, and all custom group values — after the default → flavor → build type cascade has been applied. Useful for catching misconfigured cascades early.
+
 ## 0.1.9
 
 **pub.dev score improvements** — no API or behaviour changes.
