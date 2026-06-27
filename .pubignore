@@ -1,6 +1,3 @@
-# Internal CLI source — compiled into the bin/ executable; not part of the public API
-lib_cli/
-
 # CI workflows belong to the private monorepo only
 .github/
 
