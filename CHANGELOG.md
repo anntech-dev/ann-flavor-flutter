@@ -9,6 +9,15 @@
   Hint: rename the root key from "annai_app:" to "app:" — the key was changed in v0.2.0.
 ```
 
+## 0.2.2
+
+**Redesigned `summary` command** — output is now organised by flavor × build type, showing fully resolved (cascaded) values for every field:
+
+- Each flavor has a block per build type (`release`, `debug`, …)
+- Every field shown is the effective value after the default → flavor → build type cascade: id, name, version, firebase, auth, admob, stores, custom, and Android build-type flags
+- When no flavors are defined, the default values are shown per build type
+- The old top-level "default" block is removed
+
 ## 0.2.1
 
 **`enabled: false` support in validate** — if `annspec.yaml` sets `enabled: false`, the `validate` command now shows a warning at the top explaining that all plugins will ignore the file, while still running full structural validation on the rest of the spec.

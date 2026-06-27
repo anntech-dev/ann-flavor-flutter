@@ -3,8 +3,8 @@ import 'package:path/path.dart' as p;
 import '../spec/annspec_reader.dart';
 import '../model/annspec_model.dart';
 
-final _sep = '─' * 56;
-const _labelW = 11; // width of the label column
+const _labelW = 10;
+final _divider = '─' * 52;
 
 class SummaryCommand extends Command<void> {
   @override
@@ -31,8 +31,8 @@ class SummaryCommand extends Command<void> {
     }
 
     print('');
-    print('ANN Flavor — annspec.yaml summary');
-    print(_sep);
+    print('ANN Flavor — resolved summary');
+    print(_divider);
     print('  ${p.join(projectRoot, 'annspec.yaml')}');
 
     for (final platform in spec.platforms) {
@@ -47,156 +47,202 @@ class SummaryCommand extends Command<void> {
 
   void _printPlatform(AnnspecPlatform plat) {
     print(plat.key.toUpperCase());
-    print('');
-    _printDefault(plat);
-    for (final flavor in plat.flavors) {
-      print('');
-      _printFlavor(flavor, plat);
+
+    if (plat.flavors.isEmpty) {
+      _printDefaultBuildTypes(plat);
+    } else {
+      for (final flavor in plat.flavors) {
+        print('');
+        _printFlavor(flavor, plat);
+      }
     }
   }
 
-  // ── Default block ──────────────────────────────────────────────────────────
+  // ── No-flavor case: show default resolved per build type ───────────────────
 
-  void _printDefault(AnnspecPlatform plat) {
-    _header('default');
-    if (plat.baseId != null)             _row('id',        plat.baseId!);
-    if (plat.baseName != null)           _row('name',      plat.baseName!);
-    _version(plat.defaultVersionName, plat.defaultVersionCode);
-    if (plat.minSdk != null)             _row('min sdk',   '${plat.minSdk}');
-    if (plat.signingKeyFile != null)     _row('signing',   plat.signingKeyFile!);
-    if (plat.teamId != null)             _row('team id',   plat.teamId!);
-    if (plat.googlePlayApiKey != null)   _row('gplay key', plat.googlePlayApiKey!);
-    if (plat.appStoreApiKey != null)     _row('store key', plat.appStoreApiKey!);
-    if (plat.appStoreExportPlist != null)_row('export',    plat.appStoreExportPlist!);
-    if (plat.defaultGmsAdsId != null)    _row('admob',     plat.defaultGmsAdsId!);
-    _firebase(plat.defaultFirebaseRelease, plat.defaultFirebaseDebug);
-    _auth(plat.defaultAuthRelease, plat.defaultAuthDebug);
+  void _printDefaultBuildTypes(AnnspecPlatform plat) {
+    final buildTypeKeys = _allBuildTypeKeys(
+      plat.defaultBuildTypes.keys,
+      hasFirebaseRelease: plat.defaultFirebaseRelease != null,
+      hasFirebaseDebug:   plat.defaultFirebaseDebug != null,
+    );
+
+    for (final bt in buildTypeKeys) {
+      final btCfg = plat.defaultBuildTypes[bt];
+      print('');
+      print('  $bt');
+
+      // id
+      final id = (plat.baseId ?? '') + (btCfg?.idSuffix ?? '');
+      if (id.isNotEmpty) _row('id', id);
+
+      // name
+      final name = (plat.baseName ?? '') + (btCfg?.nameSuffix ?? '');
+      if (name.isNotEmpty) _row('name', name);
+
+      // version (same across build types)
+      if (plat.defaultVersionName != null)
+        _row('version', _versionStr(plat.defaultVersionName, plat.defaultVersionCode));
+
+      // firebase
+      final fb = bt == 'release' ? plat.defaultFirebaseRelease : plat.defaultFirebaseDebug;
+      _printFirebase(fb);
+
+      // auth
+      final auth = bt == 'release' ? plat.defaultAuthRelease : plat.defaultAuthDebug;
+      _printAuth(auth);
+
+      // admob
+      final admob = btCfg?.gmsAdsId ?? plat.defaultGmsAdsId;
+      if (admob != null) _row('admob', admob);
+
+      // android-only build type fields
+      _printAndroidBtFields(btCfg);
+    }
   }
 
-  // ── Flavor block ───────────────────────────────────────────────────────────
+  // ── Flavor case ────────────────────────────────────────────────────────────
 
   void _printFlavor(AnnspecFlavor f, AnnspecPlatform plat) {
-    final isFullOverride = f.id != null;
-    final suffix = isFullOverride ? '  (full id override)' : '';
-    _header('${f.key}$suffix');
+    print('  ── ${f.key} $_divider'.substring(0, _divider.length + 5));
 
-    // Resolved effective id
-    final effectiveId = f.id ?? '${plat.baseId ?? ''}${f.idSuffix ?? ''}';
-    _row('id', effectiveId);
+    final buildTypeKeys = _allBuildTypeKeys(
+      f.buildTypes.keys,
+      hasFirebaseRelease: (f.firebaseRelease ?? plat.defaultFirebaseRelease) != null,
+      hasFirebaseDebug:   (f.firebaseDebug   ?? plat.defaultFirebaseDebug)   != null,
+    );
 
-    if (f.name != null) _row('name', f.name!);
-    _version(f.versionName, f.versionCode);
-    _firebase(f.firebaseRelease, f.firebaseDebug);
-    _auth(f.authRelease, f.authDebug);
-    if (f.gmsAdsId != null) _row('admob', f.gmsAdsId!);
-    _stores(f);
-    _custom(f.customByBuildType);
+    for (final bt in buildTypeKeys) {
+      final btCfg = f.buildTypes[bt];
+      print('');
+      print('  $bt');
+
+      // id — baseId + flavor.idSuffix + buildType.idSuffix
+      final baseId = f.id ?? (plat.baseId ?? '');
+      final id = f.id != null
+          ? baseId + (btCfg?.idSuffix ?? '')
+          : baseId + (f.idSuffix ?? '') + (btCfg?.idSuffix ?? '');
+      if (id.isNotEmpty) _row('id', id);
+
+      // name — (flavor.name ?? default.name) + buildType.nameSuffix
+      final baseName = f.name ?? plat.baseName ?? '';
+      final name = baseName + (btCfg?.nameSuffix ?? '');
+      if (name.isNotEmpty) _row('name', name);
+
+      // version — flavor overrides default, same across build types
+      final vn = f.versionName ?? plat.defaultVersionName;
+      final vc = f.versionCode ?? plat.defaultVersionCode;
+      if (vn != null) _row('version', _versionStr(vn, vc));
+
+      // firebase — flavor build_type → default build_type
+      final fb = bt == 'release'
+          ? (f.firebaseRelease ?? plat.defaultFirebaseRelease)
+          : (f.firebaseDebug   ?? plat.defaultFirebaseDebug);
+      _printFirebase(fb);
+
+      // auth — same cascade
+      final auth = bt == 'release'
+          ? (f.authRelease ?? plat.defaultAuthRelease)
+          : (f.authDebug   ?? plat.defaultAuthDebug);
+      _printAuth(auth);
+
+      // admob — buildType.admob → flavor.admob → default.admob
+      final admob = btCfg?.gmsAdsId ?? f.gmsAdsId ?? plat.defaultGmsAdsId;
+      if (admob != null) _row('admob', admob);
+
+      // stores (not build-type-specific)
+      _printStores(f);
+
+      // custom — already fully resolved per build type
+      _printCustom(f.customByBuildType[bt] ?? {});
+
+      // android-only build type fields
+      _printAndroidBtFields(btCfg);
+    }
   }
 
   // ── Field renderers ────────────────────────────────────────────────────────
 
-  void _version(String? name, String? code) {
-    if (name == null) return;
-    _row('version', code != null ? '$name ($code)' : name);
+  String _versionStr(String? name, String? code) =>
+      code != null ? '$name ($code)' : name ?? '';
+
+  void _printFirebase(AnnspecFirebase? fb) {
+    if (fb == null) return;
+    if (fb.file != null)      _row('firebase', 'file    → ${fb.file}');
+    if (fb.projectId != null) _row('firebase', 'project → ${fb.projectId}');
   }
 
-  void _firebase(AnnspecFirebase? rel, AnnspecFirebase? dbg) {
-    if (rel == null && dbg == null) return;
-
-    String? _desc(AnnspecFirebase fb) {
-      if (fb.file != null)      return 'file    → ${fb.file}';
-      if (fb.projectId != null) return 'project → ${fb.projectId}';
-      return null; // has non-standard fields (e.g. build_target) — not shown here
-    }
-
-    final relDesc = rel != null ? _desc(rel) : null;
-    final dbgDesc = dbg != null ? _desc(dbg) : null;
-    if (relDesc == null && dbgDesc == null) return;
-
-    if (relDesc != null && dbgDesc != null && relDesc == dbgDesc) {
-      _row('firebase', relDesc);
-    } else {
-      if (relDesc != null) _row('firebase', 'release  $relDesc');
-      if (dbgDesc != null) _cont('debug    $dbgDesc');
-    }
+  void _printAuth(AnnspecAuth? auth) {
+    if (auth == null) return;
+    if (auth.clientId != null)         _row('auth', 'clientId          ${auth.clientId}');
+    if (auth.reversedClientId != null) _cont('     reversedClientId  ${auth.reversedClientId}');
   }
 
-  void _auth(AnnspecAuth? rel, AnnspecAuth? dbg) {
-    if (rel == null && dbg == null) return;
-
-    bool _same() =>
-        rel?.clientId == dbg?.clientId &&
-        rel?.reversedClientId == dbg?.reversedClientId;
-
-    void _printAuth(AnnspecAuth a) {
-      if (a.clientId != null)
-        _cont('  clientId          ${a.clientId}');
-      if (a.reversedClientId != null)
-        _cont('  reversedClientId  ${a.reversedClientId}');
-    }
-
-    if (rel != null && dbg != null && _same()) {
-      _row('auth', '');
-      _printAuth(rel);
-    } else {
-      if (rel != null) { _row('auth', 'release'); _printAuth(rel); }
-      if (dbg != null) { _cont('debug');           _printAuth(dbg); }
-    }
-  }
-
-  void _stores(AnnspecFlavor f) {
+  void _printStores(AnnspecFlavor f) {
     final lines = <String>[];
-    if (f.googlePlayPriority != null)
-      lines.add('google_play    priority ${f.googlePlayPriority}');
-    if (f.samsungAppId != null)
-      lines.add('samsung_galaxy app_id   ${f.samsungAppId}');
-    if (f.amazonAppId != null)
-      lines.add('amazon         app_id   ${f.amazonAppId}');
-    if (f.appleId != null)
-      lines.add('app_store      apple_id ${f.appleId}');
+    if (f.googlePlayPriority != null) lines.add('google_play    priority ${f.googlePlayPriority}');
+    if (f.samsungAppId != null)       lines.add('samsung_galaxy app_id   ${f.samsungAppId}');
+    if (f.amazonAppId != null)        lines.add('amazon         app_id   ${f.amazonAppId}');
+    if (f.appleId != null)            lines.add('app_store      apple_id ${f.appleId}');
     if (lines.isEmpty) return;
     _row('stores', lines.first);
     for (final l in lines.skip(1)) _cont(l);
   }
 
-  void _custom(Map<String, Map<String, Map<String, dynamic>>> customByBt) {
-    if (customByBt.isEmpty) return;
-
-    final releaseCustom = customByBt['release'] ?? customByBt.values.first;
-    final debugCustom   = customByBt['debug'];
-    final hasDiff = debugCustom != null &&
-        debugCustom.toString() != releaseCustom.toString();
-
-    bool firstGroup = true;
-    for (final group in releaseCustom.entries) {
-      if (firstGroup) {
-        _row('custom', group.key);
-        firstGroup = false;
-      } else {
-        _cont(group.key);
-      }
+  void _printCustom(Map<String, Map<String, dynamic>> custom) {
+    if (custom.isEmpty) return;
+    bool first = true;
+    for (final group in custom.entries) {
+      if (first) { _row('custom', group.key); first = false; }
+      else        _cont(group.key);
       for (final kv in group.value.entries) {
         final val = kv.value is List
             ? '[${(kv.value as List).join(', ')}]'
             : '${kv.value}';
-        _cont('  ${kv.key.padRight(18)} $val');
+        _cont('  ${kv.key.padRight(16)} $val');
       }
     }
+  }
 
-    if (hasDiff) {
-      _cont('(debug overrides differ — add --verbose for full breakdown)');
+  void _printAndroidBtFields(AnnspecBuildTypeConfig? btCfg) {
+    if (btCfg == null) return;
+    if (btCfg.minifyEnabled != null)
+      _row('minify', '${btCfg.minifyEnabled}  shrink: ${btCfg.shrinkResources ?? false}');
+    if (btCfg.ndkVersion != null)
+      _row('ndk', btCfg.ndkVersion!);
+    if (btCfg.ndkAbiFilters.isNotEmpty)
+      _row('abi', btCfg.ndkAbiFilters.join(', '));
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /// Returns an ordered, deduplicated list of build type keys to display.
+  /// Always puts release before debug; appends any others alphabetically.
+  List<String> _allBuildTypeKeys(
+    Iterable<String> fromBuildTypes, {
+    bool hasFirebaseRelease = false,
+    bool hasFirebaseDebug   = false,
+  }) {
+    final all = <String>{};
+    if (hasFirebaseRelease) all.add('release');
+    if (hasFirebaseDebug)   all.add('debug');
+    all.addAll(fromBuildTypes);
+    if (all.isEmpty) { all.add('release'); all.add('debug'); }
+
+    final ordered = <String>[];
+    if (all.contains('release')) ordered.add('release');
+    if (all.contains('debug'))   ordered.add('debug');
+    for (final k in all) {
+      if (k != 'release' && k != 'debug') ordered.add(k);
     }
+    return ordered;
   }
 
   // ── Print helpers ──────────────────────────────────────────────────────────
 
-  void _header(String title) => print('  $title');
-
-  /// Labeled row:  "    label       value"
   void _row(String label, String value) =>
       print('    ${label.padRight(_labelW)}  $value');
 
-  /// Continuation row (empty label):  "               value"
   void _cont(String value) =>
       print('    ${''.padRight(_labelW)}  $value');
 }
