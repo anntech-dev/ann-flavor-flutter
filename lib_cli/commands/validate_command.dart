@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
@@ -26,13 +27,38 @@ class ValidateCommand extends Command<void> {
 
   ValidateCommand() {
     argParser.addOption('project', abbr: 'p', defaultsTo: '.');
+    argParser.addOption(
+      'format',
+      allowed: ['human', 'json'],
+      defaultsTo: 'human',
+      help: 'Output format: "human" (default) or "json" for machine consumers.',
+    );
   }
 
   @override
   Future<void> run() async {
+    final jsonMode = (argResults!['format'] as String) == 'json';
+    // Wrap everything so stdout is always valid JSON in json mode.
+    try {
+      await _runValidate(jsonMode);
+    } catch (e) {
+      if (jsonMode) {
+        _printJson('annspec.yaml', [], [], parseError: 'Internal error: $e');
+      } else {
+        rethrow;
+      }
+      exitCode = 1;
+    }
+  }
+
+  Future<void> _runValidate(bool jsonMode) async {
     final projectRoot = argResults!['project'] as String;
-    print('ANN Flavor — validating annspec.yaml in $projectRoot');
-    print('');
+    final specPath = p.join(projectRoot, 'annspec.yaml');
+
+    if (!jsonMode) {
+      print('ANN Flavor — validating annspec.yaml in $projectRoot');
+      print('');
+    }
 
     final errors   = <_Issue>[];
     final warnings = <_Issue>[];
@@ -42,13 +68,15 @@ class ValidateCommand extends Command<void> {
 
     try {
       spec   = AnnspecReader.read(projectRoot);
-      final file = File(p.join(projectRoot, 'annspec.yaml'));
-      rawDoc = loadYaml(file.readAsStringSync()) as YamlMap;
+      rawDoc = loadYaml(File(specPath).readAsStringSync()) as YamlMap;
     } catch (e) {
-      // AnnspecReader already emits friendly messages for known problems.
-      // Strip the leading "Exception: " wrapper if present.
       final msg = '$e'.replaceFirst('Exception: ', '');
-      print('  ✗  Cannot read annspec.yaml:\n     $msg');
+      if (jsonMode) {
+        _printJson(specPath, [], [], parseError: msg);
+        exitCode = 1;
+      } else {
+        print('  ✗  Cannot read annspec.yaml:\n     $msg');
+      }
       return;
     }
 
@@ -70,7 +98,15 @@ class ValidateCommand extends Command<void> {
       _validatePlatform(platform, rawApp, errors, warnings);
     }
 
-    _printResults(errors, warnings);
+    _checkFirebaseIntegration(spec, errors, warnings);
+    _checkDeprecatedFirebaseFields(rawDoc, errors);
+
+    if (jsonMode) {
+      _printJson(specPath, errors, warnings);
+    } else {
+      _printResults(errors, warnings);
+    }
+    if (errors.isNotEmpty) exitCode = 1;
   }
 
   // ── Platform ───────────────────────────────────────────────────────────────
@@ -123,9 +159,9 @@ class ValidateCommand extends Command<void> {
 
     // Default build_type checks
     _checkFirebase('$basePath.default.build_types.release.firebase',
-        platform.defaultFirebaseRelease, plat, errors);
+        platform.defaultFirebaseRelease, plat, errors, warnings);
     _checkFirebase('$basePath.default.build_types.debug.firebase',
-        platform.defaultFirebaseDebug,   plat, errors);
+        platform.defaultFirebaseDebug,   plat, errors, warnings);
 
     final rawDefault = rawPlatform?['default'] as YamlMap?;
     _checkBuildTypeFields('$basePath.default',
@@ -200,9 +236,9 @@ class ValidateCommand extends Command<void> {
 
     // Firebase checks
     _checkFirebase('$basePath.build_types.release.firebase',
-        flavor.firebaseRelease, plat, errors);
+        flavor.firebaseRelease, plat, errors, warnings);
     _checkFirebase('$basePath.build_types.debug.firebase',
-        flavor.firebaseDebug,   plat, errors);
+        flavor.firebaseDebug,   plat, errors, warnings);
 
     // Wrong-platform store fields
     if (plat == 'ios') {
@@ -260,6 +296,7 @@ class ValidateCommand extends Command<void> {
     AnnspecFirebase? firebase,
     String platformKey,
     List<_Issue> errors,
+    List<_Issue> warnings,
   ) {
     if (firebase == null) return;
 
@@ -268,7 +305,7 @@ class ValidateCommand extends Command<void> {
         path,
         '"config_file" and "project_id" are both set — use one, not both.',
         fix: 'Use "config_file" (path to google-services.json) on Android, '
-            'or "project_id" (Firebase project ID) on iOS.',
+            'or "project_id" (Firebase project ID) for flutterfire configure.',
       ));
     }
     if (platformKey == 'ios' && firebase.configFile != null) {
@@ -277,6 +314,102 @@ class ValidateCommand extends Command<void> {
         '"config_file" is Android-only — iOS downloads its config via "project_id" at build time.',
         fix: 'Replace  config_file: "..."  with  project_id: "your-firebase-project-id"',
       ));
+    }
+    // project_id mode requires a service_account; without it flutterfire configure will prompt
+    // interactively or fall back to ADC — both violate REQ-FIRE-00100.
+    if (firebase.projectId != null && firebase.serviceAccount == null) {
+      warnings.add(_Issue(
+        path,
+        '"project_id" is set but no "service_account" resolves for this build — '
+            'flutterfire configure will fail without credentials.',
+        fix: 'Add:  service_account: "keys/firebase-sa.json"  '
+            'at default, flavor, or build_type level.',
+      ));
+    }
+    // service_account with config_file mode is ineffective — service_account is only used
+    // by flutterfire configure, which only runs in project_id mode.
+    if (firebase.serviceAccount != null && firebase.configFile != null && firebase.projectId == null) {
+      warnings.add(_Issue(
+        path,
+        '"service_account" is set but the mode is "config_file" — '
+            'service_account is only used with project_id mode.',
+        fix: 'Remove "service_account" or switch to "project_id" mode.',
+      ));
+    }
+  }
+
+  // ── Firebase integration gate ──────────────────────────────────────────────
+
+  void _checkFirebaseIntegration(
+    AnnspecModel spec,
+    List<_Issue> errors,
+    List<_Issue> warnings,
+  ) {
+    if (spec.integrations?.firebase != true) return;
+
+    // integrations.firebase: true but no firebase blocks found anywhere is likely a mistake.
+    final hasAny = spec.platforms.any((p) =>
+        p.defaultFirebaseRelease != null ||
+        p.defaultFirebaseDebug != null ||
+        p.flavors.any((f) => f.firebaseRelease != null || f.firebaseDebug != null));
+
+    if (!hasAny) {
+      warnings.add(_Issue(
+        'integrations.firebase',
+        'integrations.firebase is true but no firebase blocks are configured on any platform.',
+        fix: 'Add firebase blocks under build_types, or set integrations.firebase: false.',
+      ));
+    }
+  }
+
+  // ── Deprecated field scanner ───────────────────────────────────────────────
+
+  // Scan the raw YAML for deprecated fields. No backward compatibility (REQ-FIRE-00180) —
+  // these are errors, not warnings, and no automatic migration is performed.
+  void _checkDeprecatedFirebaseFields(YamlMap rawDoc, List<_Issue> errors) {
+    // Top-level app.general.firebase_token_file
+    final general = (rawDoc['app'] as YamlMap?)?['general'] as YamlMap?;
+    if (general != null && general.containsKey('firebase_token_file')) {
+      errors.add(_Issue(
+        'app.general.firebase_token_file',
+        '"firebase_token_file" was removed in v0.3.0 — machine auth is no longer supported.',
+        fix: 'Add  service_account: "keys/firebase-sa.json"  inside each build_type.firebase block. '
+            'See the Firebase Setup guide for service account creation steps.',
+      ));
+    }
+    _scanForDeprecatedFirebase(rawDoc, '', errors);
+  }
+
+  static const _knownFirebaseKeys = {
+    'config_file', 'project_id', 'service_account',
+    // 'file' is intentionally absent — caught separately as a deprecated-field error.
+  };
+
+  void _scanForDeprecatedFirebase(dynamic node, String path, List<_Issue> errors) {
+    if (node is! YamlMap) return;
+    for (final entry in node.entries) {
+      final key = entry.key as String;
+      final childPath = path.isEmpty ? key : '$path.$key';
+      if (key == 'firebase' && entry.value is YamlMap) {
+        final fb = entry.value as YamlMap;
+        if (fb.containsKey('file')) {
+          errors.add(_Issue(
+            '$childPath.file',
+            '"firebase.file" was renamed to "firebase.config_file" in v0.3.0.',
+            fix: 'Rename  file: "..."  to  config_file: "..."  in this firebase block.',
+          ));
+        }
+        for (final fbKey in fb.keys.cast<String>()) {
+          if (!_knownFirebaseKeys.contains(fbKey) && fbKey != 'file') {
+            errors.add(_Issue(
+              '$childPath.$fbKey',
+              '"$fbKey" is not a recognised firebase field.',
+              fix: 'Valid fields are: config_file, project_id, service_account.',
+            ));
+          }
+        }
+      }
+      _scanForDeprecatedFirebase(entry.value, childPath, errors);
     }
   }
 
@@ -309,6 +442,32 @@ class ValidateCommand extends Command<void> {
       s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   // ── Output ─────────────────────────────────────────────────────────────────
+
+  void _printJson(
+    String specPath,
+    List<_Issue> errors,
+    List<_Issue> warnings, {
+    String? parseError,
+  }) {
+    final errList = parseError != null
+        ? [
+            {'severity': 'error', 'path': 'annspec.yaml', 'message': parseError, 'fix': null}
+          ]
+        : errors
+            .map((e) => {'severity': 'error', 'path': e.path, 'message': e.message, 'fix': e.fix})
+            .toList();
+
+    final warnList = warnings
+        .map((w) => {'severity': 'warning', 'path': w.path, 'message': w.message, 'fix': w.fix})
+        .toList();
+
+    print(jsonEncode({
+      'valid': errList.isEmpty,
+      'specPath': p.absolute(specPath),
+      'errors': errList,
+      'warnings': warnList,
+    }));
+  }
 
   void _printResults(List<_Issue> errors, List<_Issue> warnings) {
     if (warnings.isNotEmpty) {

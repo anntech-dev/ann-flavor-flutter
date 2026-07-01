@@ -10,7 +10,7 @@ class FirebaseCommand extends Command<void> {
   @override
   final description =
       'Run flutterfire configure for every build type that has a project_id '
-      'in annspec.yaml. Requires Application Default Credentials (ADC).';
+      'in annspec.yaml. Auth via service_account field (no ADC/gcloud).';
 
   FirebaseCommand() {
     argParser.addOption(

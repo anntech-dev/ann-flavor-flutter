@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^0.2.5
+  ann_flutter_flavor: ^0.3.0
 ```
 
 ---
@@ -42,6 +42,9 @@ The **ANN Flutter Flavor** plugin for Android Studio and IntelliJ IDEA lets you 
 ```yaml
 app:
 
+  integrations:
+    firebase: true   # enable flutterfire configure during sync
+
   android:
     sdk:
       minSdk: 23
@@ -58,12 +61,14 @@ app:
         release:
           firebase:
             project_id: "my-firebase-prod"
+            service_account: "keys/flutterfire-sa.json"   # required for project_id mode
           auth:
             clientId: "000000000000-release.apps.googleusercontent.com"
             reversedClientId: "com.googleusercontent.apps.000000000000-release"
         debug:
           firebase:
             project_id: "my-firebase-dev"
+            service_account: "keys/flutterfire-sa.json"
       custom:                                       # default-level custom attributes
         revenuecat:
           api_key: "rc_default_key"
