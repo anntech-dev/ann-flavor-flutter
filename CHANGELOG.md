@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3
+
+**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`)
+to 2.0.11 (firebase android default fix). No Flutter CLI behaviour changes.
+
+---
+
 ## 0.4.2
 
 **Comments in generated Podfile and Gemfile** — `plugin 'ann-ios-flavorize'` in
