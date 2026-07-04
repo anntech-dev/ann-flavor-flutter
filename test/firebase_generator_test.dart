@@ -86,6 +86,44 @@ app:
 ''');
 }
 
+void _writeProjectIdSpecWithIosBuildConfig(Directory dir) {
+  File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  integrations:
+    firebase: true
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+        build_types:
+          release:
+            firebase:
+              project_id: "my-firebase-prod"
+              ios_build_config: "Release-app"
+''');
+}
+
 // Spec with project_id on both Android and iOS — used to verify temp routing on both platforms.
 void _writeBothPlatformSpec(Directory dir) {
   File('${dir.path}/annspec.yaml').writeAsStringSync('''
@@ -214,13 +252,14 @@ void main() {
       expect(content, contains('Script Execution Summary'));
     });
 
-    test('script contains cleanup step before configure calls', () async {
+    test('script contains cleanup step targeting only Dart options files', () async {
       _writeProjectIdSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('rm -rf lib/generated/firebase/*'));
+      expect(content, contains('rm -f lib/generated/firebase/*_firebase_options.dart'));
+      expect(content, isNot(contains('rm -rf lib/generated/firebase/*')));
       // Cleanup must appear before the first flutterfire call
-      final cleanupIdx = content.indexOf('rm -rf lib/generated/firebase/*');
+      final cleanupIdx = content.indexOf('rm -f lib/generated/firebase/*_firebase_options.dart');
       final configureIdx = content.indexOf('flutterfire configure');
       expect(cleanupIdx, lessThan(configureIdx));
     });
@@ -233,8 +272,15 @@ void main() {
       expect(content, contains('-i com.example.test.app'));
     });
 
-    test('script contains --ios-build-config for iOS', () async {
-      _writeProjectIdSpec(tempDir);
+    test('script omits --ios-build-config when not set in spec', () async {
+      _writeProjectIdSpec(tempDir); // no ios_build_config field
+      await _runSync(tempDir, firebaseMode: 'script');
+      final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
+      expect(content, isNot(contains('--ios-build-config')));
+    });
+
+    test('script includes --ios-build-config when explicitly set in spec', () async {
+      _writeProjectIdSpecWithIosBuildConfig(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
       expect(content, contains('--ios-build-config=Release-app'));
@@ -247,44 +293,55 @@ void main() {
       expect(content, isNot(contains('set -euo pipefail')));
     });
 
-    test('script defines ANN_TEMP_DIR cross-platform variable', () async {
+    test('script does not define ANN_TEMP_DIR variable', () async {
       _writeProjectIdSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      // Variable covers macOS (TMPDIR), Windows WSL/Git Bash (TEMP), Linux (/tmp).
-      expect(content, contains('ANN_TEMP_DIR="\${TMPDIR:-\${TEMP:-/tmp}}"'));
+      expect(content, isNot(contains('ANN_TEMP_DIR')));
     });
 
-    test('script routes android config_file to temp via --android-out', () async {
+    test('script sets CI=true and TERM=dumb to suppress flutterfire spinners', () async {
+      _writeProjectIdSpec(tempDir);
+      await _runSync(tempDir, firebaseMode: 'script');
+      final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
+      expect(content, contains('export CI=true'));
+      expect(content, contains('export TERM=dumb'));
+    });
+
+    test('script routes android --android-out to standard path then mv to stable path', () async {
       _writeBothPlatformSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--android-out "\$ANN_TEMP_DIR/ann-firebase-android-'));
-      expect(content, contains('.json"'));
+      // flutterfire requires --android-out to be named exactly google-services.json.
+      expect(content, contains('--android-out android/app/google-services.json'));
+      // After success, the file is moved to the stable committed location.
+      expect(content, contains('mv android/app/google-services.json lib/generated/firebase/google-services-'));
+      expect(content, isNot(contains('ANN_TEMP_DIR')));
     });
 
-    test('script routes iOS config_file to temp via --ios-out', () async {
+    test('script routes ios --ios-out to stable generated path', () async {
       _writeBothPlatformSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--ios-out "\$ANN_TEMP_DIR/ann-firebase-ios-'));
-      expect(content, contains('.plist"'));
+      expect(content, contains('--ios-out lib/generated/firebase/GoogleService-Info-'));
+      expect(content, contains('.plist'));
+      expect(content, isNot(contains('ANN_TEMP_DIR')));
     });
 
-    test('script uses unique filenames for android and ios temp files', () async {
+    test('script uses unique stable paths per flavor/buildType combination', () async {
       _writeBothPlatformSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      final androidOuts = RegExp(r'--android-out "[^"]*"').allMatches(content);
-      final iosOuts     = RegExp(r'--ios-out "[^"]*"').allMatches(content);
-      // All android-out paths must be distinct.
-      final androidPaths = androidOuts.map((m) => m.group(0)).toSet();
-      expect(androidPaths.length, equals(androidOuts.length),
-          reason: 'Each android configure call must write to a unique temp file');
-      // All ios-out paths must be distinct.
+      // Android: mv destinations must all be distinct stable paths.
+      final mvMatches = RegExp(r'mv android/app/google-services\.json (\S+)').allMatches(content);
+      final mvDests = mvMatches.map((m) => m.group(1)).toSet();
+      expect(mvDests.length, equals(mvMatches.length),
+          reason: 'Each android configure call must mv to a unique stable file');
+      // iOS: --ios-out paths must all be distinct.
+      final iosOuts = RegExp(r'--ios-out \S+').allMatches(content);
       final iosPaths = iosOuts.map((m) => m.group(0)).toSet();
       expect(iosPaths.length, equals(iosOuts.length),
-          reason: 'Each iOS configure call must write to a unique temp file');
+          reason: 'Each iOS configure call must write to a unique stable file');
     });
   });
 }

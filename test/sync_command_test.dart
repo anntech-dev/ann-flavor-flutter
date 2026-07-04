@@ -71,6 +71,39 @@ app:
 ''');
 }
 
+void _writeFirebaseSpec(Directory dir) {
+  File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  integrations:
+    firebase: true
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+''');
+}
+
 Future<ProcessResult> _runSync(Directory projectDir, List<String> extraArgs) {
   return Process.run(
     'dart',
@@ -164,6 +197,83 @@ void main() {
       final stdout = result.stdout.toString();
       expect(stdout.indexOf('[3/6]'), lessThan(stdout.indexOf('[4/6]')),
           reason: 'iOS (step 3) must precede Firebase (step 4):\n$stdout');
+    });
+  });
+
+  group('sync command — .gitignore management', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_gitignore_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('appends Firebase entries to .gitignore when firebase: true', () async {
+      _writeFirebaseSpec(tempDir);
+      await _runSync(tempDir, []);
+      final gitignore = File('${tempDir.path}/.gitignore');
+      expect(gitignore.existsSync(), isTrue, reason: '.gitignore should be created');
+      final content = gitignore.readAsStringSync();
+      expect(content, contains('android/app/src/**/google-services.json'));
+      expect(content, contains('ios/**/GoogleService-Info.plist'));
+    });
+
+    test('does not duplicate .gitignore entries when already present', () async {
+      _writeFirebaseSpec(tempDir);
+      final gitignore = File('${tempDir.path}/.gitignore');
+      gitignore.writeAsStringSync(
+        'android/app/src/**/google-services.json\n'
+        'ios/**/GoogleService-Info.plist\n',
+      );
+      await _runSync(tempDir, []);
+      final content = gitignore.readAsStringSync();
+      final androidCount = 'android/app/src/**/google-services.json'
+          .allMatches(content)
+          .length;
+      final iosCount = 'ios/**/GoogleService-Info.plist'
+          .allMatches(content)
+          .length;
+      expect(androidCount, equals(1), reason: 'android entry must not be duplicated');
+      expect(iosCount, equals(1), reason: 'iOS entry must not be duplicated');
+    });
+
+    test('does not add .gitignore Firebase entries when firebase: false', () async {
+      _writeValidSpec(tempDir);  // valid spec has no firebase integration
+      await _runSync(tempDir, []);
+      final gitignore = File('${tempDir.path}/.gitignore');
+      if (gitignore.existsSync()) {
+        final content = gitignore.readAsStringSync();
+        expect(content, isNot(contains('android/app/src/**/google-services.json')));
+        expect(content, isNot(contains('ios/**/GoogleService-Info.plist')));
+      }
+    });
+  });
+
+  group('sync command — CocoaPods gem', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_gem_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('adds cocoapods and ann-flavor-cocoapods gems to Gemfile when iOS is configured', () async {
+      _writeFirebaseSpec(tempDir); // has both android + ios sections
+      await _runSync(tempDir, []);
+      final gemfile = File('${tempDir.path}/Gemfile');
+      expect(gemfile.existsSync(), isTrue, reason: 'Gemfile should be created');
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("gem 'cocoapods'"),
+          reason: 'Gemfile should contain cocoapods gem');
+      expect(content, contains("gem 'ann-flavor-cocoapods'"),
+          reason: 'Gemfile should contain ann-flavor-cocoapods gem');
+    });
+
+    test('does not duplicate CocoaPods gems on second sync', () async {
+      _writeFirebaseSpec(tempDir);
+      await _runSync(tempDir, []);
+      await _runSync(tempDir, []);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      expect("gem 'cocoapods'".allMatches(content).length, equals(1),
+          reason: 'cocoapods gem must not be duplicated');
+      expect("gem 'ann-flavor-cocoapods'".allMatches(content).length, equals(1),
+          reason: 'ann-flavor-cocoapods gem must not be duplicated');
     });
   });
 }

@@ -32,7 +32,8 @@ class AnnspecFirebase {
   final String? projectId;
   final String? configFile;
   final String? serviceAccount;
-  AnnspecFirebase({this.projectId, this.configFile, this.serviceAccount});
+  final String? iosBuildConfig;
+  AnnspecFirebase({this.projectId, this.configFile, this.serviceAccount, this.iosBuildConfig});
 }
 
 class AnnspecFlavor {

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../spec/annspec_reader.dart';
 import '../model/annspec_model.dart';
+import '../validators/testspec_validator.dart';
 
 const _androidOnlyBuildTypeFields = [
   'minifyEnabled', 'shrinkResources', 'lintCheckReleaseBuilds',
@@ -101,12 +102,23 @@ class ValidateCommand extends Command<void> {
     _checkFirebaseIntegration(spec, errors, warnings);
     _checkDeprecatedFirebaseFields(rawDoc, errors);
 
+    final annspecFlavorKeys = <String, Set<String>>{
+      for (final platform in spec.platforms)
+        platform.key: platform.flavors.map((f) => f.key).toSet(),
+    };
+    final testspecResult = validateTestspec(
+      findTestspecFile(projectRoot),
+      projectRoot,
+      annspecFlavorKeys: annspecFlavorKeys,
+    );
+
     if (jsonMode) {
-      _printJson(specPath, errors, warnings);
+      _printJson(specPath, errors, warnings, testspec: testspecResult);
     } else {
       _printResults(errors, warnings);
+      _printTestspecResults(testspecResult);
     }
-    if (errors.isNotEmpty) exitCode = 1;
+    if (errors.isNotEmpty || testspecResult.errors.isNotEmpty) exitCode = 1;
   }
 
   // ── Platform ───────────────────────────────────────────────────────────────
@@ -387,7 +399,7 @@ class ValidateCommand extends Command<void> {
   }
 
   static const _knownFirebaseKeys = {
-    'config_file', 'project_id', 'service_account',
+    'config_file', 'project_id', 'service_account', 'ios_build_config',
     // 'file' is intentionally absent — caught separately as a deprecated-field error.
   };
 
@@ -410,7 +422,7 @@ class ValidateCommand extends Command<void> {
             errors.add(_Issue(
               '$childPath.$fbKey',
               '"$fbKey" is not a recognised firebase field.',
-              fix: 'Valid fields are: config_file, project_id, service_account.',
+              fix: 'Valid fields are: config_file, project_id, service_account, ios_build_config.',
             ));
           }
         }
@@ -454,6 +466,7 @@ class ValidateCommand extends Command<void> {
     List<_Issue> errors,
     List<_Issue> warnings, {
     String? parseError,
+    TestspecResult? testspec,
   }) {
     final errList = parseError != null
         ? [
@@ -467,11 +480,36 @@ class ValidateCommand extends Command<void> {
         .map((w) => {'severity': 'warning', 'path': w.path, 'message': w.message, 'fix': w.fix})
         .toList();
 
+    Map<String, dynamic>? testspecJson;
+    if (testspec != null) {
+      if (!testspec.present) {
+        testspecJson = {'present': false};
+      } else {
+        testspecJson = {
+          'present': true,
+          'valid': testspec.errors.isEmpty,
+          'specPath': p.absolute(testspec.specPath!),
+          'errors': testspec.errors
+              .map((e) => {'severity': 'error', 'path': e.path, 'message': e.message, 'fix': e.fix})
+              .toList(),
+          'warnings': testspec.warnings
+              .map((w) => {'severity': 'warning', 'path': w.path, 'message': w.message, 'fix': w.fix})
+              .toList(),
+          'infos': testspec.infos
+              .map((i) => {'severity': 'info', 'path': i.path, 'message': i.message, 'fix': i.fix})
+              .toList(),
+        };
+      }
+    }
+
+    final overall = errList.isEmpty && (testspec == null || testspec.errors.isEmpty);
+
     print(jsonEncode({
-      'valid': errList.isEmpty,
+      'valid': overall,
       'specPath': p.absolute(specPath),
       'errors': errList,
       'warnings': warnList,
+      if (testspecJson != null) 'testspec': testspecJson,
     }));
   }
 
@@ -488,6 +526,40 @@ class ValidateCommand extends Command<void> {
       print('  ✗  ${errors.length} error${errors.length == 1 ? '' : 's'}:');
       for (final e in errors) _printIssue(e, isError: true);
     }
+  }
+
+  void _printTestspecResults(TestspecResult result) {
+    print('');
+    if (!result.present) {
+      print('  ℹ  anntestspec.yaml not found — test spec validation skipped.');
+      return;
+    }
+
+    if (result.warnings.isNotEmpty) {
+      print('  ⚠  anntestspec.yaml — ${result.warnings.length} warning${result.warnings.length == 1 ? '' : 's'}:');
+      for (final w in result.warnings) _printTestspecIssue(w, icon: '⚠');
+      print('');
+    }
+    if (result.infos.isNotEmpty) {
+      print('  ℹ  anntestspec.yaml — ${result.infos.length} info item${result.infos.length == 1 ? '' : 's'}:');
+      for (final i in result.infos) _printTestspecIssue(i, icon: 'ℹ');
+      print('');
+    }
+
+    if (result.errors.isEmpty) {
+      final suffix = result.warnings.isEmpty && result.infos.isEmpty ? '.' : ' (with items above).';
+      print('  ✅  anntestspec.yaml is valid$suffix');
+    } else {
+      print('  ✗  anntestspec.yaml — ${result.errors.length} error${result.errors.length == 1 ? '' : 's'}:');
+      for (final e in result.errors) _printTestspecIssue(e, icon: '✗');
+    }
+  }
+
+  void _printTestspecIssue(TestspecIssue issue, {required String icon}) {
+    print('');
+    print('    $icon  ${issue.path}');
+    print('       ${issue.message}');
+    if (issue.fix != null) print('       → ${issue.fix}');
   }
 
   void _printIssue(_Issue issue, {required bool isError}) {

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.4.6
+
+### Added
+- **DEF-017**: New `validate-testspec` CLI command — validates `anntestspec.yaml`
+  standalone, exits 1 if not found or if the file contains errors. Supports
+  `--format json` for machine consumption (CI-friendly). The `validate` command also
+  runs testspec validation automatically and includes a `testspec` key in its JSON
+  output.
+- **DEF-017**: `sync` now adds `gem 'ann-flavor-cocoapods'` to the Gemfile when iOS
+  is configured in `annspec.yaml`. Previously the CocoaPods plugin gem was never
+  added automatically, causing `pod install` to fail with "plugin
+  `ann-ios-flavorize` not installed".
+
+### Fixed
+- **DEF-018**: Generated `firebase.sh` now sets `export CI=true` at the top of the
+  script. This suppresses `flutterfire`'s ANSI escape codes and spinner sequences
+  (`[A[2K⠹ …`) when the script is run in an IDE terminal or any non-TTY context.
+- **DEF-014**: `firebase.sh` now writes `google-services.json` and
+  `GoogleService-Info.plist` to `lib/generated/firebase/` with stable
+  flavor/buildType-scoped filenames instead of routing them to `$ANN_TEMP_DIR`.
+  These files are safe to commit and are read by the Gradle and CocoaPods build
+  plugins on every build.
+
+  `sync` now appends `.gitignore` entries to prevent the build-plugin target
+  copies (`android/app/src/**/google-services.json` and
+  `ios/**/GoogleService-Info.plist`) from being committed.
+
+  The script cleanup step is narrowed from `rm -rf lib/generated/firebase/*`
+  to `rm -f lib/generated/firebase/*_firebase_options.dart` so committed
+  JSON/plist sources are not wiped on re-run.
+
+---
+
 ## 0.4.5
 
 ### Fixed

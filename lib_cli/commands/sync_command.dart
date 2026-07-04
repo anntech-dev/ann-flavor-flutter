@@ -95,13 +95,19 @@ class SyncCommand extends Command<void> {
       exitCode = 1;
       return;
     }
+    if (spec.integrations?.firebase == true) {
+      _ensureFirebaseGitignoreEntries(projectRoot);
+    }
 
-    // Step 5 — Fastlane
+    // Step 5 — Fastlane / iOS gem
     if (spec.integrations?.fastlane == true) {
       if (!jsonMode) print('\n[5/6] Setting up Fastlane (Gemfile)...');
       FastlaneGenerator.generate(projectRoot);
     } else {
       if (!jsonMode) print('\n[5/6] Fastlane integration disabled — skipping.');
+    }
+    if (spec.platform('ios') != null) {
+      _ensureCocoapodsGemEntry(projectRoot, jsonMode: jsonMode);
     }
 
     // Step 6 — Melos
@@ -116,6 +122,47 @@ class SyncCommand extends Command<void> {
       print('\n✅  Sync complete.');
       print('    iOS: run `pod install` if Podfile changed.');
     }
+  }
+
+  // ── .gitignore management ───────────────────────────────────────────────────
+
+  void _ensureFirebaseGitignoreEntries(String projectRoot) {
+    final file = File(p.join(projectRoot, '.gitignore'));
+    final existing = file.existsSync() ? file.readAsStringSync() : '';
+
+    const entries = [
+      'android/app/src/**/google-services.json',
+      'ios/**/GoogleService-Info.plist',
+    ];
+
+    final toAdd = entries.where((e) => !existing.contains(e)).toList();
+    if (toAdd.isEmpty) return;
+
+    final block = '\n# Firebase config copies managed by ann-flavor-tooling\n'
+        '${toAdd.join('\n')}\n';
+    file.writeAsStringSync(existing + block);
+    print('  ✓ Added Firebase entries to .gitignore');
+  }
+
+  // ── CocoaPods gem management ─────────────────────────────────────────────────
+
+  void _ensureCocoapodsGemEntry(String projectRoot, {required bool jsonMode}) {
+    const podGemLine    = "gem 'cocoapods'";
+    const pluginGemLine = "gem 'ann-flavor-cocoapods'";
+    const comment       = '# Added by ann_flutter_flavor — CocoaPods flavor plugin';
+    final file = File(p.join(projectRoot, 'Gemfile'));
+    var existing = file.existsSync() ? file.readAsStringSync() : '';
+    var changed = false;
+    if (!existing.contains(podGemLine)) {
+      existing = existing.trimRight() + '\n$comment\n$podGemLine\n$pluginGemLine\n';
+      changed = true;
+    } else if (!existing.contains(pluginGemLine)) {
+      existing = existing.trimRight() + '\n$pluginGemLine\n';
+      changed = true;
+    }
+    if (!changed) return;
+    file.writeAsStringSync(existing);
+    if (!jsonMode) print("  ✓ Updated Gemfile with CocoaPods gems");
   }
 
   // ── Pre-flight validation ───────────────────────────────────────────────────
@@ -171,7 +218,7 @@ class SyncCommand extends Command<void> {
     _scanForDeprecatedFirebase(rawDoc, '', errors);
   }
 
-  static const _knownFirebaseKeys = {'config_file', 'project_id', 'service_account'};
+  static const _knownFirebaseKeys = {'config_file', 'project_id', 'service_account', 'ios_build_config'};
 
   void _scanForDeprecatedFirebase(dynamic node, String path, List<_Issue> errors) {
     if (node is! YamlMap) return;
@@ -185,7 +232,7 @@ class SyncCommand extends Command<void> {
             errors.add(_Issue(
               '$childPath.$fbKey',
               '"$fbKey" is not a recognised firebase field. '
-              'Valid fields: config_file, project_id, service_account.',
+              'Valid fields: config_file, project_id, service_account, ios_build_config.',
             ));
           }
         }

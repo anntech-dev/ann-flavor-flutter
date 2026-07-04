@@ -153,6 +153,7 @@ class AnnspecReader {
       projectId:      m['project_id'] as String?,
       configFile:     m['config_file'] as String?,
       serviceAccount: m['service_account'] as String?,
+      iosBuildConfig: m['ios_build_config'] as String?,
     );
   }
 

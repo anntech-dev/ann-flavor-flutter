@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^0.4.5
+  ann_flutter_flavor: ^0.4.6
 ```
 
 ---
@@ -147,12 +147,12 @@ Firebase configuration uses two different modes depending on the platform:
 
 | Platform | Mode | Field | What happens at sync |
 |----------|------|-------|----------------------|
-| Android | Static file | `config_file` | Copies `google-services.json` to the correct source set |
-| iOS | Dynamic fetch | `project_id` | Runs `flutterfire configure`; generates `firebase_options.dart` |
-| Web | Dynamic fetch | `project_id` | Runs `flutterfire configure`; generates `firebase_options.dart` |
+| Android | Static file | `config_file` | Copies `google-services.json` to the correct source set at build time |
+| Android | Dynamic fetch | `project_id` | Generates `firebase.sh`; running the script writes `google-services-{flavor}-{buildType}.json` to `lib/generated/firebase/` (committed); Gradle plugin copies it to the source set at build time |
+| iOS | Dynamic fetch | `project_id` | Generates `firebase.sh`; running the script writes `GoogleService-Info-{flavor}-{buildType}.plist` to `lib/generated/firebase/` (committed); CocoaPods plugin copies it to the iOS target at build time |
+| Web | Dynamic fetch | `project_id` | Generates `firebase.sh`; running the script writes `firebase_options.dart` |
 
-Do **not** set `config_file` on iOS — sync will abort with an error. Do **not** set
-`project_id` on Android — only `config_file` is used there.
+Do **not** set `config_file` on iOS — sync will abort with an error.
 
 ### Android: cascade destinations
 
@@ -181,19 +181,23 @@ android:
           config_file: "keys/firebase/google-services-dev.json"
 ```
 
-### iOS: why no `GoogleService-Info.plist` is needed
+### iOS: `GoogleService-Info.plist` management
 
-In `project_id` mode, `dart run ann_flutter_flavor sync` runs `flutterfire configure`
-which generates per-flavor, per-build-type Dart options files:
+In `project_id` mode, `sync` generates `lib/generated/scripts/firebase.sh`. Running that
+script calls `flutterfire configure` per flavor/build-type and writes stable output files:
 
 ```
-lib/generated/firebase/{flavor}_{buildType}_ios_firebase_options.dart
+lib/generated/firebase/GoogleService-Info-{flavor}-{buildType}.plist   ← committed
+lib/generated/firebase/{flavor}_{buildType}_ios_firebase_options.dart   ← committed
 ```
 
-The CocoaPods plugin (`ann-flavor-cocoapods`) reads these files during `pod install` and
-injects `GOOGLE_APP_ID` directly into Xcode build settings. A static
-`GoogleService-Info.plist` in `ios/Runner/` is **not needed** and may cause stale config
-if left in place alongside the generated files.
+The CocoaPods plugin (`ann-flavor-cocoapods`) reads the committed plist paths from
+`annspec.yaml` and injects a pre-build Xcode phase that copies the correct plist to
+`ios/Runner/GoogleService-Info.plist` before each build, then removes it post-build so
+the workspace stays clean.
+
+A manually placed static `GoogleService-Info.plist` in `ios/Runner/` is not needed and
+may cause stale config if left alongside the generated files.
 
 ### Service account setup
 
