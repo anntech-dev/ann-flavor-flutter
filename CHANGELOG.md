@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.4.5
+
+### Fixed
+- **DEF-006**: `_patchSettings()` now updates the Gradle plugin version in-place when
+  the entry already exists but carries a stale version, for both KTS and Groovy DSL.
+  Previously only the first-time insertion path wrote the correct version.
+
+### Changed
+- **`--firebase-mode` default changed from `run` to `script`** _(breaking change in default behaviour)_
+
+  `dart run ann_flutter_flavor sync` now generates `lib/generated/scripts/firebase.sh`
+  by default instead of executing `flutterfire configure` inline. This prevents the sync
+  step from hanging when Firebase auth is not available at sync time.
+
+  **Migration:** if you relied on the old inline-execution default, add `--firebase-mode inline`
+  explicitly. The `--firebase-mode run` value has been **removed** — use `inline` instead.
+
+  | Old | New |
+  |-----|-----|
+  | `dart run ann_flutter_flavor sync` | Equivalent to `--firebase-mode inline` (old) → now `--firebase-mode script` (default) |
+  | `dart run ann_flutter_flavor sync --firebase-mode run` | Use `--firebase-mode inline` |
+  | `dart run ann_flutter_flavor sync --firebase-mode script` | Unchanged |
+
+---
+
+## 0.4.4
+
+**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`) to `2.0.12`.
+
+---
+
 ## 0.4.3
 
 **Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`)

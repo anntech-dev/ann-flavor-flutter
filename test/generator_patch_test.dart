@@ -117,6 +117,95 @@ void main() {
     });
   });
 
+  group('android_generator — _patchSettings version update', () {
+    late Directory tempDir;
+
+    Directory _makeAndroidDir(String settingsContent, {bool kts = true}) {
+      final androidDir = Directory('${tempDir.path}/android')..createSync(recursive: true);
+      final appDir = Directory('${androidDir.path}/app')..createSync(recursive: true);
+      final filename = kts ? 'settings.gradle.kts' : 'settings.gradle';
+      File('${androidDir.path}/$filename').writeAsStringSync(settingsContent);
+      File('${appDir.path}/build.gradle.kts').writeAsStringSync('''
+plugins {
+    id("com.android.application")
+}
+android {
+    defaultConfig {
+        applicationId = "com.example.test"
+        minSdk = 24
+    }
+}
+''');
+      return androidDir;
+    }
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('patch_version_test_');
+      _writeMinimalSpec(tempDir);
+    });
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('updates stale version in KTS settings', () async {
+      _makeAndroidDir('''
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+plugins {
+    id("dev.anntech.flavorize") version "0.0.1" apply false
+}
+''');
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
+      expect(content, contains('version "2.0.12"'),
+          reason: 'Version should be updated to current kGradlePluginVersion');
+      expect(content, isNot(contains('version "0.0.1"')),
+          reason: 'Stale version should be replaced');
+    });
+
+    test('updates stale version in Groovy settings', () async {
+      _makeAndroidDir('''
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+plugins {
+    id 'dev.anntech.flavorize' version '0.0.1' apply false
+}
+''', kts: false);
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/android/settings.gradle').readAsStringSync();
+      expect(content, contains("version '2.0.12'"),
+          reason: 'Version should be updated to current kGradlePluginVersion');
+      expect(content, isNot(contains("version '0.0.1'")),
+          reason: 'Stale version should be replaced');
+    });
+
+    test('does not write file when version already current', () async {
+      _makeAndroidDir('''
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+plugins {
+    id("dev.anntech.flavorize") version "2.0.12" apply false
+}
+''');
+      final file = File('${tempDir.path}/android/settings.gradle.kts');
+      await _runSync(tempDir);
+      final content = file.readAsStringSync();
+      // Version should remain the same and appear exactly once
+      expect('version "2.0.12"'.allMatches(content).length, 1,
+          reason: 'Version line should appear exactly once — no duplicate inserted');
+    });
+  });
+
   group('android_generator — no applicationId / minSdk patching', () {
     late Directory tempDir;
 

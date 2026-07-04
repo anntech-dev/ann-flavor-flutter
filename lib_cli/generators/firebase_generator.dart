@@ -21,7 +21,7 @@ class FirebaseGenerator {
   static Future<void> generate(
     AnnspecModel spec,
     String projectRoot, {
-    String firebaseMode = 'run',
+    String firebaseMode = 'script',
   }) async {
     // Only run when firebase integration is explicitly enabled.
     if (spec.integrations?.firebase != true) {
@@ -36,7 +36,7 @@ class FirebaseGenerator {
       return;
     }
 
-    if (firebaseMode == 'script') {
+    if (firebaseMode != 'inline') {
       _writeScript(cmds, projectRoot);
       return;
     }

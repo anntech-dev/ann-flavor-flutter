@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^0.4.3
+  ann_flutter_flavor: ^0.4.5
 ```
 
 ---
@@ -244,7 +244,7 @@ Encode once locally: `base64 -i firebase-sa.json | pbcopy` then paste as the sec
 dart run ann_flutter_flavor sync
 dart run ann_flutter_flavor sync -p ../my_flutter_app
 dart run ann_flutter_flavor sync --format json              # machine-readable pre-flight result
-dart run ann_flutter_flavor sync --firebase-mode script     # generate firebase.sh instead of running flutterfire
+dart run ann_flutter_flavor sync --firebase-mode inline     # run flutterfire inline instead of generating a script
 ```
 
 Validates `annspec.yaml` first (Step 0). If there are errors, sync aborts and no files
@@ -253,17 +253,25 @@ are written. Warnings are printed but generation continues.
 Step order: `[0/6]` validate → `[1/6]` Dart → `[2/6]` Android → `[3/6]` iOS →
 `[4/6]` Firebase → `[5/6]` Fastlane → `[6/6]` Melos.
 
-**`--firebase-mode script`** — writes `lib/generated/scripts/firebase.sh` containing
-all the `flutterfire configure` commands instead of executing them. Use this when
-Firebase auth is not available during sync (e.g. CI environments where the service
-account is injected in a later step):
+**`--firebase-mode`** — controls how Firebase configuration is handled during step 4.
+
+`script` is the **default**: `dart run ann_flutter_flavor sync` writes
+`lib/generated/scripts/firebase.sh` with all the `flutterfire configure` commands
+instead of executing them. Run the script when Firebase auth is ready:
 
 ```bash
-# Sync everything except Firebase:
-dart run ann_flutter_flavor sync --firebase-mode script
+# Sync (generates firebase.sh — no flutterfire executed):
+dart run ann_flutter_flavor sync
 
 # Later, when auth is ready:
 bash lib/generated/scripts/firebase.sh
+```
+
+`inline` executes `flutterfire configure` directly during sync. Use this when Firebase
+auth is available at sync time (e.g. CI pipelines with credentials injected beforehand):
+
+```bash
+dart run ann_flutter_flavor sync --firebase-mode inline
 ```
 
 The generated script navigates to the project root automatically and uses paths relative

@@ -83,7 +83,21 @@ class AndroidGenerator {
       changed = true;
       print('  ✓ Added ANN Gradle plugin to android/$label.');
     } else {
-      print('  ✓ Android $label already has ANN Gradle plugin.');
+      // Plugin entry already present — update version if stale.
+      final versionPattern = RegExp(
+        r'''(id[(\s]['"]''' + RegExp.escape(_pluginId) + r'''['")]+\s+version\s+['"])([\d.]+)(['"])''',
+      );
+      final match = versionPattern.firstMatch(content);
+      if (match != null && match.group(2) != pluginVersion) {
+        content = content.replaceFirst(
+          versionPattern,
+          '${match.group(1)}$pluginVersion${match.group(3)}',
+        );
+        changed = true;
+        print('  ✓ Updated ANN Gradle plugin version in android/$label to $pluginVersion.');
+      } else {
+        print('  ✓ Android $label already has ANN Gradle plugin at $pluginVersion.');
+      }
     }
 
     if (changed) gf.file.writeAsStringSync(content);

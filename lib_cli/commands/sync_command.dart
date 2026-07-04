@@ -42,11 +42,13 @@ class SyncCommand extends Command<void> {
     );
     argParser.addOption(
       'firebase-mode',
-      allowed: ['run', 'script'],
-      defaultsTo: 'run',
+      allowed: ['script', 'inline'],
+      defaultsTo: 'script',
       help: 'How to handle flutterfire configure during sync.\n'
-          '"run" executes it inline (default).\n'
-          '"script" writes lib/generated/scripts/firebase.sh instead.',
+          '"script" (default) writes lib/generated/scripts/firebase.sh instead of\n'
+          '  executing flutterfire. Run the script manually when auth is ready.\n'
+          '"inline" executes flutterfire configure directly during sync.\n'
+          '  Requires Firebase auth to be available at sync time.',
     );
   }
 
@@ -81,9 +83,9 @@ class SyncCommand extends Command<void> {
 
     // Step 4 — Firebase
     if (!jsonMode) {
-      final label = firebaseMode == 'script'
-          ? '[4/6] Generating firebase.sh script...'
-          : '[4/6] Running flutterfire configure (project_id flavors)...';
+      final label = firebaseMode == 'inline'
+          ? '[4/6] Running flutterfire configure (project_id flavors)...'
+          : '[4/6] Generating firebase.sh script...';
       print('\n$label');
     }
     try {
