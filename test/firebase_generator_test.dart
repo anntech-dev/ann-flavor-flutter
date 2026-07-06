@@ -279,18 +279,18 @@ void main() {
       expect(content, isNot(contains('--ios-build-config')));
     });
 
-    test('script includes --target with explicit value from spec', () async {
+    test('script includes --ios-target with explicit value from spec', () async {
       _writeProjectIdSpecWithIosTarget(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--target RunnerPro'));
+      expect(content, contains('--ios-target RunnerPro'));
     });
 
-    test('script includes --target Runner when not set in spec', () async {
+    test('script includes --ios-target Runner when not set in spec', () async {
       _writeProjectIdSpec(tempDir); // no target field → default Runner
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--target Runner'));
+      expect(content, contains('--ios-target Runner'));
     });
 
     test('script does not contain set -euo pipefail', () async {

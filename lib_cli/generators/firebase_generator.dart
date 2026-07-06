@@ -102,7 +102,7 @@ class FirebaseGenerator {
       if (cmd.platform == 'android') {
         buf.write(' \\\n  --android-out $_androidTempPath');
       } else if (cmd.platform == 'ios') {
-        buf.write(' \\\n  --target ${cmd.iosTarget}');
+        buf.write(' \\\n  --ios-target ${cmd.iosTarget}');
         buf.write(' \\\n  --ios-out $_iosRunnerPath');
       }
       if (cmd.bundleId != null) {
@@ -296,7 +296,7 @@ class FirebaseGenerator {
     if (cmd.platform == 'android') {
       args.addAll(['--android-out', _androidTempPath]);
     } else if (cmd.platform == 'ios') {
-      args.addAll(['--target', cmd.iosTarget!]);
+      args.addAll(['--ios-target', cmd.iosTarget!]);
       args.addAll(['--ios-out', _iosRunnerPath]);
     }
     if (cmd.bundleId != null) {

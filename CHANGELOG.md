@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.8
+
+### Fixed
+- **DEF-019**: `--target` flag corrected to `--ios-target` — the flag name used by `flutterfire configure` v1.4.0.
+
+---
+
 ## 0.4.7
 
 ### Added
