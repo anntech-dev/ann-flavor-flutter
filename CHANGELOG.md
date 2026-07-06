@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.9
+
+**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`) to `2.0.15`
+(DEF-020: `google-services.json` copy path fix).
+
+---
+
 ## 0.4.8
 
 ### Fixed
