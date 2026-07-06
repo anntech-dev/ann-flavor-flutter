@@ -102,14 +102,12 @@ class FirebaseGenerator {
       if (cmd.platform == 'android') {
         buf.write(' \\\n  --android-out $_androidTempPath');
       } else if (cmd.platform == 'ios') {
-        buf.write(' \\\n  --ios-out ${_iosOutPath(cmd.flavor, cmd.buildType)}');
+        buf.write(' \\\n  --target ${cmd.iosTarget}');
+        buf.write(' \\\n  --ios-out $_iosRunnerPath');
       }
       if (cmd.bundleId != null) {
         final flag = cmd.platform == 'ios' ? '-i' : '-a';
         buf.write(' \\\n  $flag ${cmd.bundleId}');
-      }
-      if (cmd.iosBuildConfig != null) {
-        buf.write(' \\\n  --ios-build-config=${cmd.iosBuildConfig}');
       }
       if (cmd.serviceAccount != null) {
         buf.write(' \\\n  --service-account ${cmd.serviceAccount}');
@@ -126,6 +124,11 @@ class FirebaseGenerator {
         final stable = _androidStablePath(cmd.flavor, cmd.buildType);
         buf.writeln('  mkdir -p lib/generated/firebase');
         buf.writeln('  mv $tmp $stable');
+      } else if (cmd.platform == 'ios') {
+        final stable = _iosStablePath(cmd.flavor, cmd.buildType);
+        buf.writeln('  mkdir -p lib/generated/firebase');
+        buf.writeln('  cp $_iosRunnerPath $stable');
+        buf.writeln('  rm $_iosRunnerPath');
       }
       buf.writeln('fi');
       buf.writeln();
@@ -177,6 +180,12 @@ class FirebaseGenerator {
         final stable = p.join(projectRoot, _androidStablePath(cmd.flavor, cmd.buildType));
         Directory(p.dirname(stable)).createSync(recursive: true);
         File(tmp).renameSync(stable);
+      } else if (cmd.platform == 'ios') {
+        final src    = File(p.join(projectRoot, _iosRunnerPath));
+        final stable = p.join(projectRoot, _iosStablePath(cmd.flavor, cmd.buildType));
+        Directory(p.dirname(stable)).createSync(recursive: true);
+        src.copySync(stable);
+        src.deleteSync();
       }
       return true;
     }
@@ -215,7 +224,10 @@ class FirebaseGenerator {
   static String _androidStablePath(String flavor, String buildType) =>
       'lib/generated/firebase/google-services-$flavor-$buildType.json';
 
-  static String _iosOutPath(String flavor, String buildType) =>
+  // flutterfire v1.4.0 only accepts --ios-out when basename is exactly GoogleService-Info.plist
+  static const _iosRunnerPath = 'ios/Runner/GoogleService-Info.plist';
+
+  static String _iosStablePath(String flavor, String buildType) =>
       'lib/generated/firebase/GoogleService-Info-$flavor-$buildType.plist';
 
   // ── Command builder ──────────────────────────────────────────────────────────
@@ -253,12 +265,8 @@ class FirebaseGenerator {
           // Derive bundle ID from flavor or default + suffix
           final bundleId = flavor.id ?? ((platform.baseId ?? '') + (flavor.idSuffix ?? ''));
 
-          // ios_build_config is opt-in — only pass --ios-build-config when the
-          // developer has explicitly set it in the spec. Auto-generating it as
-          // "Release-{flavor}" fails unless the Xcode project has those build
-          // configurations set up.
-          final iosBuildConfig = platformKey == 'ios'
-              ? fb.iosBuildConfig
+          final iosTarget = platformKey == 'ios'
+              ? AnnspecModel.resolveTarget(platform, flavor, buildType)
               : null;
 
           cmds.add(_FbCmd(
@@ -270,7 +278,7 @@ class FirebaseGenerator {
             flavor:         flavor.key,
             buildType:      buildType,
             bundleId:       bundleId.isEmpty ? null : bundleId,
-            iosBuildConfig: iosBuildConfig,
+            iosTarget:      iosTarget,
           ));
         }
       }
@@ -288,13 +296,11 @@ class FirebaseGenerator {
     if (cmd.platform == 'android') {
       args.addAll(['--android-out', _androidTempPath]);
     } else if (cmd.platform == 'ios') {
-      args.addAll(['--ios-out', _iosOutPath(cmd.flavor, cmd.buildType)]);
+      args.addAll(['--target', cmd.iosTarget!]);
+      args.addAll(['--ios-out', _iosRunnerPath]);
     }
     if (cmd.bundleId != null) {
       args.addAll([cmd.platform == 'ios' ? '-i' : '-a', cmd.bundleId!]);
-    }
-    if (cmd.iosBuildConfig != null) {
-      args.add('--ios-build-config=${cmd.iosBuildConfig}');
     }
     // Service account is the only supported auth method (REQ-FIRE-00100 — no ADC/gcloud fallback).
     if (cmd.serviceAccount != null) {
@@ -313,7 +319,7 @@ class _FbCmd {
   final String flavor;
   final String buildType;
   final String? bundleId;        // -i (iOS) or -a (Android)
-  final String? iosBuildConfig;  // --ios-build-config (iOS only)
+  final String? iosTarget;  // --target (iOS only, default Runner)
 
   const _FbCmd({
     required this.projectId,
@@ -324,6 +330,6 @@ class _FbCmd {
     required this.flavor,
     required this.buildType,
     this.bundleId,
-    this.iosBuildConfig,
+    this.iosTarget,
   });
 }

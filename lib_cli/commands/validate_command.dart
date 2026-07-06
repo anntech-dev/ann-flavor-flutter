@@ -399,7 +399,7 @@ class ValidateCommand extends Command<void> {
   }
 
   static const _knownFirebaseKeys = {
-    'config_file', 'project_id', 'service_account', 'ios_build_config',
+    'config_file', 'project_id', 'service_account', 'target',
     // 'file' is intentionally absent — caught separately as a deprecated-field error.
   };
 
@@ -422,7 +422,7 @@ class ValidateCommand extends Command<void> {
             errors.add(_Issue(
               '$childPath.$fbKey',
               '"$fbKey" is not a recognised firebase field.',
-              fix: 'Valid fields are: config_file, project_id, service_account, ios_build_config.',
+              fix: 'Valid fields are: config_file, project_id, service_account, target.',
             ));
           }
         }

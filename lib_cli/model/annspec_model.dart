@@ -32,8 +32,8 @@ class AnnspecFirebase {
   final String? projectId;
   final String? configFile;
   final String? serviceAccount;
-  final String? iosBuildConfig;
-  AnnspecFirebase({this.projectId, this.configFile, this.serviceAccount, this.iosBuildConfig});
+  final String? target;
+  AnnspecFirebase({this.projectId, this.configFile, this.serviceAccount, this.target});
 }
 
 class AnnspecFlavor {
@@ -50,6 +50,7 @@ class AnnspecFlavor {
   /// Shared service_account for this flavor, applies to all build types that
   /// don't set their own. Set via  flavor.<n>.firebase.service_account.
   final String? flavorServiceAccount;
+  final String? flavorTarget;
   final AnnspecAuth? authRelease;
   final AnnspecAuth? authDebug;
   // store fields
@@ -76,6 +77,7 @@ class AnnspecFlavor {
     this.firebaseRelease,
     this.firebaseDebug,
     this.flavorServiceAccount,
+    this.flavorTarget,
     this.authRelease,
     this.authDebug,
     this.googlePlayPriority,
@@ -110,6 +112,7 @@ class AnnspecPlatform {
   /// Shared service_account for all flavors and build types that don't set
   /// their own. Set via  default.firebase.service_account.
   final String? defaultServiceAccount;
+  final String? defaultTarget;
   final AnnspecAuth? defaultAuthRelease;
   final AnnspecAuth? defaultAuthDebug;
   final List<AnnspecFlavor> flavors;
@@ -137,6 +140,7 @@ class AnnspecPlatform {
     this.defaultFirebaseRelease,
     this.defaultFirebaseDebug,
     this.defaultServiceAccount,
+    this.defaultTarget,
     this.defaultAuthRelease,
     this.defaultAuthDebug,
     this.flavors = const [],
@@ -183,6 +187,24 @@ class AnnspecModel {
         ?? flavor?.flavorServiceAccount    // level 2
         ?? defaultFb?.serviceAccount       // level 3 when flavor has no bt firebase
         ?? platform.defaultServiceAccount; // level 4
+  }
+
+  static String resolveTarget(
+    AnnspecPlatform platform,
+    AnnspecFlavor? flavor,
+    String buildType,
+  ) {
+    final fb = buildType == 'release'
+        ? (flavor?.firebaseRelease ?? platform.defaultFirebaseRelease)
+        : (flavor?.firebaseDebug   ?? platform.defaultFirebaseDebug);
+    final defaultFb = buildType == 'release'
+        ? platform.defaultFirebaseRelease
+        : platform.defaultFirebaseDebug;
+    return fb?.target              // level 1 (flavor bt) or level 3 (default bt)
+        ?? flavor?.flavorTarget    // level 2
+        ?? defaultFb?.target       // level 3 fallback
+        ?? platform.defaultTarget  // level 4
+        ?? 'Runner';               // hardcoded default when not specified anywhere
   }
 }
 

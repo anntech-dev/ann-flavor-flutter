@@ -58,6 +58,7 @@ class AnnspecReader {
       defaultFirebaseRelease: _parseFirebase(defaultMap?['build_types']?['release']?['firebase']),
       defaultFirebaseDebug: _parseFirebase(defaultMap?['build_types']?['debug']?['firebase']),
       defaultServiceAccount: (defaultMap?['firebase'] as YamlMap?)?['service_account'] as String?,
+      defaultTarget: (defaultMap?['firebase'] as YamlMap?)?['target'] as String?,
       defaultAuthRelease: _parseAuth(defaultMap?['build_types']?['release']?['auth']),
       defaultAuthDebug: _parseAuth(defaultMap?['build_types']?['debug']?['auth']),
       flavors: flavorMap != null ? _parseFlavors(flavorMap, defaultBuildTypes,
@@ -112,6 +113,7 @@ class AnnspecReader {
         firebaseRelease: _parseFirebase(fm['build_types']?['release']?['firebase']),
         firebaseDebug: _parseFirebase(fm['build_types']?['debug']?['firebase']),
         flavorServiceAccount: (fm['firebase'] as YamlMap?)?['service_account'] as String?,
+        flavorTarget: (fm['firebase'] as YamlMap?)?['target'] as String?,
         authRelease: _parseAuth(fm['build_types']?['release']?['auth']),
         authDebug: _parseAuth(fm['build_types']?['debug']?['auth']),
         googlePlayPriority: fm['stores']?['google_play']?['priority']?.toString(),
@@ -153,7 +155,7 @@ class AnnspecReader {
       projectId:      m['project_id'] as String?,
       configFile:     m['config_file'] as String?,
       serviceAccount: m['service_account'] as String?,
-      iosBuildConfig: m['ios_build_config'] as String?,
+      target: m['target'] as String?,
     );
   }
 

@@ -86,7 +86,7 @@ app:
 ''');
 }
 
-void _writeProjectIdSpecWithIosBuildConfig(Directory dir) {
+void _writeProjectIdSpecWithIosTarget(Directory dir) {
   File('${dir.path}/annspec.yaml').writeAsStringSync('''
 enabled: true
 app:
@@ -120,7 +120,7 @@ app:
           release:
             firebase:
               project_id: "my-firebase-prod"
-              ios_build_config: "Release-app"
+              target: "RunnerPro"
 ''');
 }
 
@@ -272,18 +272,25 @@ void main() {
       expect(content, contains('-i com.example.test.app'));
     });
 
-    test('script omits --ios-build-config when not set in spec', () async {
-      _writeProjectIdSpec(tempDir); // no ios_build_config field
+    test('script never includes --ios-build-config', () async {
+      _writeProjectIdSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
       expect(content, isNot(contains('--ios-build-config')));
     });
 
-    test('script includes --ios-build-config when explicitly set in spec', () async {
-      _writeProjectIdSpecWithIosBuildConfig(tempDir);
+    test('script includes --target with explicit value from spec', () async {
+      _writeProjectIdSpecWithIosTarget(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--ios-build-config=Release-app'));
+      expect(content, contains('--target RunnerPro'));
+    });
+
+    test('script includes --target Runner when not set in spec', () async {
+      _writeProjectIdSpec(tempDir); // no target field → default Runner
+      await _runSync(tempDir, firebaseMode: 'script');
+      final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
+      expect(content, contains('--target Runner'));
     });
 
     test('script does not contain set -euo pipefail', () async {
@@ -319,12 +326,15 @@ void main() {
       expect(content, isNot(contains('ANN_TEMP_DIR')));
     });
 
-    test('script routes ios --ios-out to stable generated path', () async {
+    test('script routes ios --ios-out to Runner path then cp to stable path', () async {
       _writeBothPlatformSpec(tempDir);
       await _runSync(tempDir, firebaseMode: 'script');
       final content = File('${tempDir.path}/lib/generated/scripts/firebase.sh').readAsStringSync();
-      expect(content, contains('--ios-out lib/generated/firebase/GoogleService-Info-'));
-      expect(content, contains('.plist'));
+      // flutterfire v1.4.0 only accepts --ios-out when basename is exactly GoogleService-Info.plist
+      expect(content, contains('--ios-out ios/Runner/GoogleService-Info.plist'));
+      // After success, the file is copied to the stable committed location and the temp file removed.
+      expect(content, contains('cp ios/Runner/GoogleService-Info.plist lib/generated/firebase/GoogleService-Info-'));
+      expect(content, contains('rm ios/Runner/GoogleService-Info.plist'));
       expect(content, isNot(contains('ANN_TEMP_DIR')));
     });
 
@@ -337,11 +347,11 @@ void main() {
       final mvDests = mvMatches.map((m) => m.group(1)).toSet();
       expect(mvDests.length, equals(mvMatches.length),
           reason: 'Each android configure call must mv to a unique stable file');
-      // iOS: --ios-out paths must all be distinct.
-      final iosOuts = RegExp(r'--ios-out \S+').allMatches(content);
-      final iosPaths = iosOuts.map((m) => m.group(0)).toSet();
-      expect(iosPaths.length, equals(iosOuts.length),
-          reason: 'Each iOS configure call must write to a unique stable file');
+      // iOS: cp destinations (stable paths) must all be distinct.
+      final cpMatches = RegExp(r'cp ios/Runner/GoogleService-Info\.plist (\S+)').allMatches(content);
+      final cpDests = cpMatches.map((m) => m.group(1)).toSet();
+      expect(cpDests.length, equals(cpMatches.length),
+          reason: 'Each iOS configure call must cp to a unique stable file');
     });
   });
 }

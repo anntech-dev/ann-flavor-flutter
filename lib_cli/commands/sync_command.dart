@@ -218,7 +218,7 @@ class SyncCommand extends Command<void> {
     _scanForDeprecatedFirebase(rawDoc, '', errors);
   }
 
-  static const _knownFirebaseKeys = {'config_file', 'project_id', 'service_account', 'ios_build_config'};
+  static const _knownFirebaseKeys = {'config_file', 'project_id', 'service_account', 'target'};
 
   void _scanForDeprecatedFirebase(dynamic node, String path, List<_Issue> errors) {
     if (node is! YamlMap) return;
@@ -232,7 +232,7 @@ class SyncCommand extends Command<void> {
             errors.add(_Issue(
               '$childPath.$fbKey',
               '"$fbKey" is not a recognised firebase field. '
-              'Valid fields: config_file, project_id, service_account, ios_build_config.',
+              'Valid fields: config_file, project_id, service_account, target.',
             ));
           }
         }

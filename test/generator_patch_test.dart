@@ -159,7 +159,7 @@ plugins {
 ''');
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
-      expect(content, contains('version "2.0.13"'),
+      expect(content, contains('version "2.0.14"'),
           reason: 'Version should be updated to current kGradlePluginVersion');
       expect(content, isNot(contains('version "0.0.1"')),
           reason: 'Stale version should be replaced');
@@ -179,7 +179,7 @@ plugins {
 ''', kts: false);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle').readAsStringSync();
-      expect(content, contains("version '2.0.13'"),
+      expect(content, contains("version '2.0.14'"),
           reason: 'Version should be updated to current kGradlePluginVersion');
       expect(content, isNot(contains("version '0.0.1'")),
           reason: 'Stale version should be replaced');
@@ -194,14 +194,14 @@ pluginManagement {
     }
 }
 plugins {
-    id("dev.anntech.flavorize") version "2.0.13" apply false
+    id("dev.anntech.flavorize") version "2.0.14" apply false
 }
 ''');
       final file = File('${tempDir.path}/android/settings.gradle.kts');
       await _runSync(tempDir);
       final content = file.readAsStringSync();
       // Version should remain the same and appear exactly once
-      expect('version "2.0.13"'.allMatches(content).length, 1,
+      expect('version "2.0.14"'.allMatches(content).length, 1,
           reason: 'Version line should appear exactly once — no duplicate inserted');
     });
   });

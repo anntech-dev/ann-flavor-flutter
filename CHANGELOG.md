@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.7
+
+### Added
+- **DEF-019** (`target` field): New optional `target` field inside `firebase` blocks
+  (iOS only) — names the Xcode target passed to `flutterfire configure --target`.
+  Resolves via a 4-level cascade identical to `service_account`. Defaults to `"Runner"`
+  when absent at all cascade levels. Valid in `default.firebase`, `default.build_types.<bt>.firebase`,
+  `flavor.<n>.firebase`, and `flavor.<n>.build_types.<bt>.firebase`.
+
+### Fixed
+- **DEF-019**: iOS `flutterfire configure` now passes `--ios-out ios/Runner/GoogleService-Info.plist`
+  (exact basename required by flutterfire v1.4.0) and `&&`-chains a `cp` to the stable committed
+  path at `lib/generated/firebase/GoogleService-Info-{flavor}-{buildType}.plist` followed by `rm`.
+  Previously `--ios-out` was set to the stable path directly, causing flutterfire v1.4.0 to throw
+  `ValidationException: --ios-out basename must be exactly GoogleService-Info.plist`.
+
+---
+
 ## 0.4.6
 
 ### Added
