@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.10
+
+### Added
+- **Three firebase helper functions**: `flavorFirebaseOptions()` (auto-selects by build type),
+  `flavorFirebaseOptionsRelease()` (always release), `flavorFirebaseOptionsDebug()` (always debug).
+  The previous single `flavorFirebaseOptions()` function is replaced by this trio.
+- **`auth()` concrete default on `AnnFlavorConfig`**: dispatches to `authRelease()` or `authDebug()`
+  based on `AnnFlavor.buildType`. Consumers no longer need to implement `auth()` themselves.
+
+### Breaking
+- **`auth()` renamed to `authRelease()`** in `AnnFlavorConfig`. Any class that overrides `auth()`
+  must rename the override to `authRelease()`. The `ann_flutter_flavor sync` command regenerates
+  `ann_flavor.g.dart` with the correct method name automatically.
+- The `_<Flavor>Firebase` private class now exposes `optionsRelease()` instead of `options()`.
+  Generated code is updated automatically on next sync.
+
+### Fixed
+- **DEF-021** (Gradle 2.0.16): `PostBuildProcessingTask` annotation fix — `FirebaseCopyTask` now
+  runs reliably before cleanup. Update the Gradle plugin version in your project to 2.0.16.
+- **Version sync** — bundled Gradle plugin reference (`kGradlePluginVersion`) updated to `2.0.16`.
+
+---
+
 ## 0.4.9
 
 **Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`) to `2.0.15`

@@ -80,21 +80,33 @@ class DartGenerator {
 
     if (hasFirebase) {
       // Firebase helpers — kept separate so ann_flutter_flavor package stays firebase-free.
-      buf.writeln('/// Firebase options for the active flavor + platform (release).');
+      buf.writeln('/// Firebase options for the active flavor + platform, auto-selected by build type.');
       buf.writeln('FirebaseOptions? flavorFirebaseOptions() {');
       buf.writeln("  switch (AnnFlavor.current.key) {");
       for (final key in allFlavors.keys) {
-        buf.writeln("    case '${key}': return _${_pascal(key)}Firebase.options(AnnFlavor.platform);");
+        buf.writeln("    case '$key': return AnnFlavor.buildType == 'debug'");
+        buf.writeln("        ? _${_pascal(key)}Firebase.optionsDebug(AnnFlavor.platform)");
+        buf.writeln("        : _${_pascal(key)}Firebase.optionsRelease(AnnFlavor.platform);");
       }
       buf.writeln('    default: return null;');
       buf.writeln('  }');
       buf.writeln('}');
       buf.writeln();
-      buf.writeln('/// Firebase options for the active flavor + platform (debug).');
+      buf.writeln('/// Firebase options for the active flavor + platform (release only).');
+      buf.writeln('FirebaseOptions? flavorFirebaseOptionsRelease() {');
+      buf.writeln("  switch (AnnFlavor.current.key) {");
+      for (final key in allFlavors.keys) {
+        buf.writeln("    case '$key': return _${_pascal(key)}Firebase.optionsRelease(AnnFlavor.platform);");
+      }
+      buf.writeln('    default: return null;');
+      buf.writeln('  }');
+      buf.writeln('}');
+      buf.writeln();
+      buf.writeln('/// Firebase options for the active flavor + platform (debug only).');
       buf.writeln('FirebaseOptions? flavorFirebaseOptionsDebug() {');
       buf.writeln("  switch (AnnFlavor.current.key) {");
       for (final key in allFlavors.keys) {
-        buf.writeln("    case '${key}': return _${_pascal(key)}Firebase.optionsDebug(AnnFlavor.platform);");
+        buf.writeln("    case '$key': return _${_pascal(key)}Firebase.optionsDebug(AnnFlavor.platform);");
       }
       buf.writeln('    default: return null;');
       buf.writeln('  }');
@@ -141,7 +153,7 @@ class DartGenerator {
     buf.writeln("  @override String? get iosId => ${_str(iosId)};");
     buf.writeln();
 
-    _writeAuthGetter(buf, 'auth', byPlatform, (f) => f.authRelease,
+    _writeAuthGetter(buf, 'authRelease', byPlatform, (f) => f.authRelease,
         androidPlatform?.defaultAuthRelease, iosPlatform?.defaultAuthRelease);
     buf.writeln();
     _writeAuthGetter(buf, 'authDebug', byPlatform, (f) => f.authDebug,
@@ -215,8 +227,8 @@ class DartGenerator {
         buf.writeln('      );');
       }
     }
-    buf.writeln('      default: return null;');
     buf.writeln('    }');
+    buf.writeln('    return null;');
     buf.writeln('  }');
   }
 
@@ -227,7 +239,7 @@ class DartGenerator {
     AnnspecModel spec,
   ) {
     buf.writeln('class _${_pascal(flavorKey)}Firebase {');
-    buf.writeln('  static FirebaseOptions? options(AnnPlatform platform) {');
+    buf.writeln('  static FirebaseOptions? optionsRelease(AnnPlatform platform) {');
     buf.writeln('    switch (platform) {');
     for (final platformKey in ['android', 'ios', 'web', 'windows']) {
       final flavor   = byPlatform[platformKey];
@@ -240,8 +252,8 @@ class DartGenerator {
         buf.writeln('        return $alias.DefaultFirebaseOptions.currentPlatform;');
       }
     }
-    buf.writeln('      default: return null;');
     buf.writeln('    }');
+    buf.writeln('    return null;');
     buf.writeln('  }');
     buf.writeln();
     buf.writeln('  static FirebaseOptions? optionsDebug(AnnPlatform platform) {');
@@ -257,8 +269,8 @@ class DartGenerator {
         buf.writeln('        return $alias.DefaultFirebaseOptions.currentPlatform;');
       }
     }
-    buf.writeln('      default: return null;');
     buf.writeln('    }');
+    buf.writeln('    return null;');
     buf.writeln('  }');
     buf.writeln('}');
   }

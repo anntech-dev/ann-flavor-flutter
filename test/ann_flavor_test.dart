@@ -13,7 +13,7 @@ class _TestFlavor extends AnnFlavorConfig {
   final String? iosId = 'com.example.test';
 
   @override
-  AnnAuthConfig? auth(AnnPlatform platform) =>
+  AnnAuthConfig? authRelease(AnnPlatform platform) =>
       const AnnAuthConfig(clientId: 'client-id-release');
 
   @override
@@ -91,14 +91,26 @@ void main() {
       expect(flavor.iosId, 'com.example.test');
     });
 
-    test('auth returns release clientId', () {
-      final auth = flavor.auth(AnnPlatform.android);
+    test('authRelease returns release clientId', () {
+      final auth = flavor.authRelease(AnnPlatform.android);
       expect(auth?.clientId, 'client-id-release');
     });
 
     test('authDebug returns debug clientId', () {
       final auth = flavor.authDebug(AnnPlatform.android);
       expect(auth?.clientId, 'client-id-debug');
+    });
+
+    test('auth() dispatches to authRelease when buildType is release', () {
+      AnnFlavor.buildTypeOverride = 'release';
+      expect(flavor.auth(AnnPlatform.android)?.clientId, 'client-id-release');
+      AnnFlavor.buildTypeOverride = null;
+    });
+
+    test('auth() dispatches to authDebug when buildType is debug', () {
+      AnnFlavor.buildTypeOverride = 'debug';
+      expect(flavor.auth(AnnPlatform.android)?.clientId, 'client-id-debug');
+      AnnFlavor.buildTypeOverride = null;
     });
 
     test('custom returns null for unknown group', () {

@@ -47,9 +47,14 @@ abstract class AnnFlavorConfig {
   /// iOS bundle identifier (base ID + any `id_suffix`), or `null` if not set.
   String? get iosId;
 
+  /// Google Sign-In OAuth config auto-selected by build type.
+  /// Returns [authRelease] in release mode or [authDebug] in debug mode.
+  AnnAuthConfig? auth(AnnPlatform platform) =>
+      AnnFlavor.buildType == 'debug' ? authDebug(platform) : authRelease(platform);
+
   /// Google Sign-In OAuth config for the given [platform] in **release** mode,
   /// or `null` if no `auth:` block is defined for this flavor/platform.
-  AnnAuthConfig? auth(AnnPlatform platform);
+  AnnAuthConfig? authRelease(AnnPlatform platform);
 
   /// Google Sign-In OAuth config for the given [platform] in **debug** mode,
   /// or `null` if no `auth:` block is defined for this flavor/platform.
