@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.11
+
+### Fixed
+- **DEF-023**: Generated `AnnPlatform` switch statements in `authRelease`, `authDebug`, `optionsRelease`,
+  and `optionsDebug` are now exhaustive. All four `AnnPlatform` arms (`android`, `ios`, `web`, `windows`)
+  are always emitted; platforms without config emit `return null;`. Removes the Dart 3 non-exhaustive
+  switch compile error in consumer projects that only configure `android` and `ios`.
+- **Lint**: Generated file now emits `// ignore: depend_on_referenced_packages` before the
+  `firebase_core` import to suppress the lint warning for transitive dependencies.
+
 ## 0.4.10
 
 ### Added

@@ -168,16 +168,20 @@ void main() {
       expect(content, contains('static FirebaseOptions? optionsRelease(AnnPlatform platform)'));
     });
 
-    test('no unreachable default in AnnPlatform platform switch — post-switch return null used', () async {
+    test('exhaustive AnnPlatform switch — all four arms generated, no default', () async {
       final result = await _runSync(tempDir);
       expect(result.exitCode, 0,
           reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
       final content = _readGenerated(tempDir);
-      // The Firebase private class must use post-switch return null, not default: return null;
-      // Verify the class body does not contain default: return null after a case AnnPlatform line.
       final classStart = content.indexOf('class _MyappFirebase');
       expect(classStart, greaterThan(-1), reason: '_MyappFirebase class not found');
       final classBody = content.substring(classStart);
+      // All four AnnPlatform arms must be present
+      expect(classBody, contains('case AnnPlatform.android:'));
+      expect(classBody, contains('case AnnPlatform.ios:'));
+      expect(classBody, contains('case AnnPlatform.web:'));
+      expect(classBody, contains('case AnnPlatform.windows:'));
+      // No default arm — exhaustive switch, no dead post-switch return
       expect(classBody, isNot(contains('default: return null;')));
     });
   });
@@ -249,20 +253,22 @@ void main() {
       expect(content, isNot(contains('@override AnnAuthConfig? auth(')));
     });
 
-    test('no unreachable default in AnnPlatform auth switch — post-switch return null used', () async {
+    test('exhaustive AnnPlatform switch in auth — all four arms generated, no default', () async {
       final result = await _runSync(tempDir);
       expect(result.exitCode, 0,
           reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
       final content = _readGenerated(tempDir);
-      // Locate the generated config class and extract only its body.
-      // Class ends at the first col-0 `}` followed by a blank line (outer
-      // class brace, not an indented method brace).
       final classStart = content.indexOf('class _MyappConfig');
       expect(classStart, greaterThan(-1), reason: '_MyappConfig class not found');
       final classEnd = content.indexOf('\n}\n\n', classStart + 1);
       final classBody = classEnd > classStart
           ? content.substring(classStart, classEnd + 2)
           : content.substring(classStart);
+      // All four AnnPlatform arms must be present in each auth method
+      expect(classBody, contains('case AnnPlatform.android:'));
+      expect(classBody, contains('case AnnPlatform.ios:'));
+      expect(classBody, contains('case AnnPlatform.web:'));
+      expect(classBody, contains('case AnnPlatform.windows:'));
       expect(classBody, isNot(contains('default: return null;')));
     });
   });

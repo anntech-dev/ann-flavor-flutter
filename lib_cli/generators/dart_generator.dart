@@ -38,6 +38,7 @@ class DartGenerator {
 
     final hasFirebase = fbImports.isNotEmpty;
     if (hasFirebase) {
+      buf.writeln('// ignore: depend_on_referenced_packages');
       buf.writeln("import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;");
       for (final line in fbImports) {
         buf.writeln(line);
@@ -213,11 +214,16 @@ class DartGenerator {
   ) {
     buf.writeln('  @override AnnAuthConfig? $methodName(AnnPlatform platform) {');
     buf.writeln('    switch (platform) {');
-    for (final pe in byPlatform.entries) {
-      final auth = selector(pe.value) ??
-          (pe.key == 'android' ? androidDefault : pe.key == 'ios' ? iosDefault : null);
+    for (final platformKey in ['android', 'ios', 'web', 'windows']) {
+      final flavor = byPlatform[platformKey];
+      final auth = flavor != null
+          ? selector(flavor) ??
+              (platformKey == 'android'
+                  ? androidDefault
+                  : platformKey == 'ios' ? iosDefault : null)
+          : null;
       if (auth != null) {
-        buf.writeln('      case AnnPlatform.${pe.key}: return AnnAuthConfig(');
+        buf.writeln('      case AnnPlatform.$platformKey: return AnnAuthConfig(');
         if (auth.clientId != null) {
           buf.writeln("        clientId: '${_esc(auth.clientId!)}',");
         }
@@ -225,10 +231,11 @@ class DartGenerator {
           buf.writeln("        reversedClientId: '${_esc(auth.reversedClientId!)}',");
         }
         buf.writeln('      );');
+      } else {
+        buf.writeln('      case AnnPlatform.$platformKey: return null;');
       }
     }
     buf.writeln('    }');
-    buf.writeln('    return null;');
     buf.writeln('  }');
   }
 
@@ -243,34 +250,38 @@ class DartGenerator {
     buf.writeln('    switch (platform) {');
     for (final platformKey in ['android', 'ios', 'web', 'windows']) {
       final flavor   = byPlatform[platformKey];
-      if (flavor == null) continue;
       final platform = spec.platform(platformKey);
-      final fb = flavor.firebaseRelease ?? platform?.defaultFirebaseRelease;
+      final fb = flavor != null
+          ? (flavor.firebaseRelease ?? platform?.defaultFirebaseRelease)
+          : null;
       if (fb != null) {
         final alias = _fbAlias(flavorKey, platformKey, 'release');
         buf.writeln('      case AnnPlatform.$platformKey:');
         buf.writeln('        return $alias.DefaultFirebaseOptions.currentPlatform;');
+      } else {
+        buf.writeln('      case AnnPlatform.$platformKey: return null;');
       }
     }
     buf.writeln('    }');
-    buf.writeln('    return null;');
     buf.writeln('  }');
     buf.writeln();
     buf.writeln('  static FirebaseOptions? optionsDebug(AnnPlatform platform) {');
     buf.writeln('    switch (platform) {');
     for (final platformKey in ['android', 'ios', 'web', 'windows']) {
       final flavor   = byPlatform[platformKey];
-      if (flavor == null) continue;
       final platform = spec.platform(platformKey);
-      final fb = flavor.firebaseDebug ?? platform?.defaultFirebaseDebug;
+      final fb = flavor != null
+          ? (flavor.firebaseDebug ?? platform?.defaultFirebaseDebug)
+          : null;
       if (fb != null) {
         final alias = _fbAlias(flavorKey, platformKey, 'debug');
         buf.writeln('      case AnnPlatform.$platformKey:');
         buf.writeln('        return $alias.DefaultFirebaseOptions.currentPlatform;');
+      } else {
+        buf.writeln('      case AnnPlatform.$platformKey: return null;');
       }
     }
     buf.writeln('    }');
-    buf.writeln('    return null;');
     buf.writeln('  }');
     buf.writeln('}');
   }
