@@ -133,6 +133,8 @@ class DartGenerator {
   ) {
     final androidPlatform = spec.platform('android');
     final iosPlatform     = spec.platform('ios');
+    final webPlatform     = spec.platform('web');
+    final windowsPlatform = spec.platform('windows');
     final android = byPlatform['android'];
     final ios     = byPlatform['ios'];
 
@@ -155,10 +157,12 @@ class DartGenerator {
     buf.writeln();
 
     _writeAuthGetter(buf, 'authRelease', byPlatform, (f) => f.authRelease,
-        androidPlatform?.defaultAuthRelease, iosPlatform?.defaultAuthRelease);
+        androidPlatform?.defaultAuthRelease, iosPlatform?.defaultAuthRelease,
+        webPlatform?.defaultAuthRelease, windowsPlatform?.defaultAuthRelease);
     buf.writeln();
     _writeAuthGetter(buf, 'authDebug', byPlatform, (f) => f.authDebug,
-        androidPlatform?.defaultAuthDebug, iosPlatform?.defaultAuthDebug);
+        androidPlatform?.defaultAuthDebug, iosPlatform?.defaultAuthDebug,
+        webPlatform?.defaultAuthDebug, windowsPlatform?.defaultAuthDebug);
 
     // custom() — collect all groups across platforms and build types
     final allGroups = <String, Map<String, Map<String, dynamic>>>{};
@@ -211,17 +215,22 @@ class DartGenerator {
     AnnspecAuth? Function(AnnspecFlavor) selector,
     AnnspecAuth? androidDefault,
     AnnspecAuth? iosDefault,
+    AnnspecAuth? webDefault,
+    AnnspecAuth? windowsDefault,
   ) {
+    final defaults = {
+      'android': androidDefault,
+      'ios': iosDefault,
+      'web': webDefault,
+      'windows': windowsDefault,
+    };
     buf.writeln('  @override AnnAuthConfig? $methodName(AnnPlatform platform) {');
     buf.writeln('    switch (platform) {');
     for (final platformKey in ['android', 'ios', 'web', 'windows']) {
       final flavor = byPlatform[platformKey];
       final auth = flavor != null
-          ? selector(flavor) ??
-              (platformKey == 'android'
-                  ? androidDefault
-                  : platformKey == 'ios' ? iosDefault : null)
-          : null;
+          ? selector(flavor) ?? defaults[platformKey]
+          : defaults[platformKey];
       if (auth != null) {
         buf.writeln('      case AnnPlatform.$platformKey: return AnnAuthConfig(');
         if (auth.clientId != null) {

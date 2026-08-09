@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.12
+
+### Fixed
+- **DEF-024**: `_writeAuthGetter` now correctly applies platform default auth for all four
+  `AnnPlatform` values. Previously `web` and `windows` defaults were never applied (always
+  emitting `return null;`), and android/ios defaults were also silently ignored when no
+  flavor entry existed for that platform. Auth configured under
+  `<platform>.default.build_types.release/debug.auth` in `annspec.yaml` is now emitted
+  correctly for all platforms.
+
 ## 0.4.11
 
 ### Fixed

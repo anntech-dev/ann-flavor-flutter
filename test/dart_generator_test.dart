@@ -272,4 +272,83 @@ void main() {
       expect(classBody, isNot(contains('default: return null;')));
     });
   });
+
+  group('dart_generator — web/windows default auth from platform default', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('dartgen_webauth_test_');
+      File('${tempDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      myapp:
+        name: "My App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .myapp
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      myapp:
+        name: "My App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .myapp
+  web:
+    default:
+      id: com.example.test
+      build_types:
+        release:
+          auth:
+            clientId: "web-release-client-id"
+        debug:
+          auth:
+            clientId: "web-debug-client-id"
+    flavor:
+      myapp:
+        name: "My App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+''');
+    });
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('authRelease emits web clientId from web.default.build_types', () async {
+      final result = await _runSync(tempDir);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final content = _readGenerated(tempDir);
+      expect(content, contains("case AnnPlatform.web: return AnnAuthConfig("));
+      expect(content, contains("clientId: 'web-release-client-id'"));
+    });
+
+    test('authDebug emits web clientId from web.default.build_types', () async {
+      final result = await _runSync(tempDir);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final content = _readGenerated(tempDir);
+      expect(content, contains("clientId: 'web-debug-client-id'"));
+    });
+
+    test('web default does not bleed into authRelease when not configured', () async {
+      // android and ios have no auth — web has it — windows should still be null
+      final result = await _runSync(tempDir);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final content = _readGenerated(tempDir);
+      expect(content, contains('case AnnPlatform.windows: return null;'));
+    });
+  });
 }
