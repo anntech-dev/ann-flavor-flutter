@@ -351,4 +351,54 @@ app:
       expect(content, contains('case AnnPlatform.windows: return null;'));
     });
   });
+
+  group('dart_generator — appleId', () {
+    late Directory projectDir;
+
+    setUp(() async {
+      projectDir = await Directory.systemTemp.createTemp('appleId_test_');
+      await Directory('${projectDir.path}/lib/generated').create(recursive: true);
+    });
+
+    tearDown(() async => projectDir.deleteSync(recursive: true));
+
+    test('appleId emitted when set in iOS flavor', () async {
+      File('${projectDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      production:
+        name: "Production"
+        stores:
+          app_store:
+            apple_id: "1234567890"
+''');
+      final result = await _runSync(projectDir);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final generated = _readGenerated(projectDir);
+      expect(generated, contains("get appleId => '1234567890'"));
+    });
+
+    test('appleId is null when not set in iOS flavor', () async {
+      File('${projectDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      production:
+        name: "Production"
+''');
+      final result = await _runSync(projectDir);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final generated = _readGenerated(projectDir);
+      expect(generated, contains('get appleId => null'));
+    });
+  });
 }

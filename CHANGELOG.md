@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+- `AnnFlavorConfig.appleId` — exposes the `stores.app_store.apple_id` value from
+  `annspec.yaml` in the generated `ann_flavor.g.dart`. Returns `null` when the field
+  is not set. Access at runtime: `AnnFlavor.current.appleId`.
+
+---
+
 ## 0.5.0
 
 ### Added

@@ -154,6 +154,7 @@ class DartGenerator {
     buf.writeln("  @override String get name => '${_esc(first.name ?? flavorKey)}';");
     buf.writeln("  @override String? get androidId => ${_str(androidId)};");
     buf.writeln("  @override String? get iosId => ${_str(iosId)};");
+    buf.writeln("  @override String? get appleId => ${_str(ios?.appleId)};");
     buf.writeln();
 
     _writeAuthGetter(buf, 'authRelease', byPlatform, (f) => f.authRelease,

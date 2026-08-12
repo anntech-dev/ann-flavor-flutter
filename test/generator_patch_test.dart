@@ -5,6 +5,28 @@ final _packageRoot = Directory.current.path.endsWith('/test')
     ? Directory.current.parent.path
     : Directory.current.path;
 
+/// Reads gradle_plugin version from versions.yaml at the repo root.
+/// Falls back two levels (package root → plugins/ → repo root).
+String _readGradleVersion() {
+  final candidates = [
+    '$_packageRoot/../../versions.yaml',          // running from package dir
+    '$_packageRoot/../../../versions.yaml',        // running from test/ subdir
+    '${Directory.current.path}/versions.yaml',    // running from repo root
+  ];
+  for (final path in candidates) {
+    final f = File(path);
+    if (!f.existsSync()) continue;
+    for (final line in f.readAsLinesSync()) {
+      if (line.startsWith('gradle_plugin:')) {
+        return line.split(':').last.trim();
+      }
+    }
+  }
+  throw StateError('versions.yaml not found — searched: $candidates');
+}
+
+final _gradleVersion = _readGradleVersion();
+
 Future<ProcessResult> _runSync(Directory projectDir) =>
     Process.run('dart', ['run', 'ann_flutter_flavor', 'sync', '--project', projectDir.path],
         workingDirectory: _packageRoot);
@@ -159,7 +181,7 @@ plugins {
 ''');
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
-      expect(content, contains('version "2.2.1"'),
+      expect(content, contains('version "$_gradleVersion"'),
           reason: 'Version should be updated to current kGradlePluginVersion');
       expect(content, isNot(contains('version "0.0.1"')),
           reason: 'Stale version should be replaced');
@@ -179,7 +201,7 @@ plugins {
 ''', kts: false);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle').readAsStringSync();
-      expect(content, contains("version '2.2.1'"),
+      expect(content, contains("version '$_gradleVersion'"),
           reason: 'Version should be updated to current kGradlePluginVersion');
       expect(content, isNot(contains("version '0.0.1'")),
           reason: 'Stale version should be replaced');
@@ -194,14 +216,14 @@ pluginManagement {
     }
 }
 plugins {
-    id("dev.anntech.flavorize") version "2.2.1" apply false
+    id("dev.anntech.flavorize") version "$_gradleVersion" apply false
 }
 ''');
       final file = File('${tempDir.path}/android/settings.gradle.kts');
       await _runSync(tempDir);
       final content = file.readAsStringSync();
       // Version should remain the same and appear exactly once
-      expect('version "2.2.1"'.allMatches(content).length, 1,
+      expect('version "$_gradleVersion"'.allMatches(content).length, 1,
           reason: 'Version line should appear exactly once — no duplicate inserted');
     });
   });

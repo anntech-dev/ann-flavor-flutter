@@ -47,6 +47,10 @@ abstract class AnnFlavorConfig {
   /// iOS bundle identifier (base ID + any `id_suffix`), or `null` if not set.
   String? get iosId;
 
+  /// App Store application ID (numeric), or `null` if `stores.app_store.apple_id`
+  /// is not set in `annspec.yaml`.
+  String? get appleId => null;
+
   /// Google Sign-In OAuth config auto-selected by build type.
   /// Returns [authRelease] in release mode or [authDebug] in debug mode.
   AnnAuthConfig? auth(AnnPlatform platform) =>

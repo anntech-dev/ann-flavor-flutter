@@ -276,4 +276,52 @@ void main() {
           reason: 'ann-flavor-cocoapods gem must not be duplicated');
     });
   });
+
+  group('sync command — appleId in generated Dart', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_appleid_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('appleId is emitted in ann_flavor.g.dart when set', () async {
+      File('${tempDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      production:
+        name: "Production"
+        stores:
+          app_store:
+            apple_id: "9876543210"
+''');
+      final result = await _runSync(tempDir, []);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final dart = File('${tempDir.path}/lib/generated/ann_flavor.g.dart').readAsStringSync();
+      expect(dart, contains("get appleId => '9876543210'"),
+          reason: 'appleId should be emitted in the generated Dart file');
+    });
+
+    test('appleId is null in ann_flavor.g.dart when not set', () async {
+      File('${tempDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      production:
+        name: "Production"
+''');
+      final result = await _runSync(tempDir, []);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final dart = File('${tempDir.path}/lib/generated/ann_flavor.g.dart').readAsStringSync();
+      expect(dart, contains('get appleId => null'),
+          reason: 'appleId should be null in generated Dart when not set in spec');
+    });
+  });
 }
