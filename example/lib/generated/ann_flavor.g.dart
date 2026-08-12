@@ -28,6 +28,9 @@ class FreeFlavor extends AnnFlavorConfig {
   AnnAuthConfig? authDebug(AnnPlatform platform) => null;
 
   @override
+  AnnAuthConfig? authRelease(AnnPlatform platform) => null;
+
+  @override
   AnnCustomGroup? custom(String group) {
     final bt = AnnFlavor.buildType;
     return switch (group) {
@@ -68,6 +71,9 @@ class ProFlavor extends AnnFlavorConfig {
 
   @override
   AnnAuthConfig? authDebug(AnnPlatform platform) => null;
+
+  @override
+  AnnAuthConfig? authRelease(AnnPlatform platform) => null;
 
   @override
   AnnCustomGroup? custom(String group) {

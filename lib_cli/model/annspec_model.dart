@@ -45,6 +45,7 @@ class AnnspecFlavor {
   final String? versionName;
   final String? versionCode;
   final String? gmsAdsId; // resolved: buildType.admob.gms_ads_id ?? flavor.admob.gms_ads_id ?? default.admob.gms_ads_id
+  final String? icon; // resolved: flavor.icon ?? default.icon
   final AnnspecFirebase? firebaseRelease;
   final AnnspecFirebase? firebaseDebug;
   /// Shared service_account for this flavor, applies to all build types that
@@ -74,6 +75,7 @@ class AnnspecFlavor {
     this.versionName,
     this.versionCode,
     this.gmsAdsId,
+    this.icon,
     this.firebaseRelease,
     this.firebaseDebug,
     this.flavorServiceAccount,
@@ -106,6 +108,7 @@ class AnnspecPlatform {
   final String? defaultVersionName;
   final String? defaultVersionCode;
   final String? defaultGmsAdsId;
+  final String? defaultIcon;
   final String? teamId;
   final AnnspecFirebase? defaultFirebaseRelease;
   final AnnspecFirebase? defaultFirebaseDebug;
@@ -136,6 +139,7 @@ class AnnspecPlatform {
     this.defaultVersionName,
     this.defaultVersionCode,
     this.defaultGmsAdsId,
+    this.defaultIcon,
     this.teamId,
     this.defaultFirebaseRelease,
     this.defaultFirebaseDebug,

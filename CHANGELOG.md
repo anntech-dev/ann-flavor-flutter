@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+- **Plan 011**: `icon` field added to `AnnspecFlavor` and platform defaults in the CLI model and reader. Parsed for android and iOS platforms.
+- **Plan 011**: `IosIconGenerator` generates per-flavor iOS icon sets via `flutter_launcher_icons`. Source PNG is validated (must be 1024×1024).
+- **Plan 011**: `wireXcconfig` patches `<flavor>Release.xcconfig` and `<flavor>Debug.xcconfig` with `ASSETCATALOG_COMPILER_APPICON_NAME` so Xcode picks up the generated icon set.
+- **Plan 011**: `sync` command now includes step 4 — iOS icon generation for all flavors with an `icon` configured, inserted between iOS wiring (step 3) and Firebase (step 5).
+- All three cores (Kotlin, Dart, Ruby) updated: `icon` field parsed and resolved with cascade (`flavor.icon ?? default.icon`); `effectiveIcon` / `effective_icon` exposed on `ResolvedBuildOutput`.
+
+---
+
 ## 0.4.12
 
 ### Fixed

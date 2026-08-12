@@ -163,19 +163,19 @@ void main() {
     setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_order_test_'));
     tearDown(() => tempDir.deleteSync(recursive: true));
 
-    test('step labels [0/6] through [3/6] appear in ascending order in output', () async {
+    test('step labels [0/7] through [3/7] appear in ascending order in output', () async {
       _writeValidSpec(tempDir);
       final result = await _runSync(tempDir, []);
       final stdout = result.stdout.toString();
       final positions = [
-        stdout.indexOf('[0/6]'),
-        stdout.indexOf('[1/6]'),
-        stdout.indexOf('[2/6]'),
-        stdout.indexOf('[3/6]'),
+        stdout.indexOf('[0/7]'),
+        stdout.indexOf('[1/7]'),
+        stdout.indexOf('[2/7]'),
+        stdout.indexOf('[3/7]'),
       ];
       for (var i = 0; i < positions.length; i++) {
         expect(positions[i], greaterThan(-1),
-            reason: 'Step [${i}/6] label not found in output:\n$stdout');
+            reason: 'Step [${i}/7] label not found in output:\n$stdout');
       }
       for (var i = 0; i < positions.length - 1; i++) {
         expect(positions[i], lessThan(positions[i + 1]),
@@ -183,20 +183,20 @@ void main() {
       }
     });
 
-    test('[2/6] Android appears before [3/6] iOS', () async {
+    test('[2/7] Android appears before [3/7] iOS', () async {
       _writeValidSpec(tempDir);
       final result = await _runSync(tempDir, []);
       final stdout = result.stdout.toString();
-      expect(stdout.indexOf('[2/6]'), lessThan(stdout.indexOf('[3/6]')),
+      expect(stdout.indexOf('[2/7]'), lessThan(stdout.indexOf('[3/7]')),
           reason: 'Android (step 2) must precede iOS (step 3):\n$stdout');
     });
 
-    test('[3/6] iOS appears before [4/6] Firebase', () async {
+    test('[3/7] iOS appears before [5/7] Firebase', () async {
       _writeValidSpec(tempDir);
       final result = await _runSync(tempDir, []);
       final stdout = result.stdout.toString();
-      expect(stdout.indexOf('[3/6]'), lessThan(stdout.indexOf('[4/6]')),
-          reason: 'iOS (step 3) must precede Firebase (step 4):\n$stdout');
+      expect(stdout.indexOf('[3/7]'), lessThan(stdout.indexOf('[5/7]')),
+          reason: 'iOS (step 3) must precede Firebase (step 5):\n$stdout');
     });
   });
 

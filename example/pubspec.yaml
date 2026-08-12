@@ -9,7 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  ann_flutter_flavor: ^0.4.12
+  ann_flutter_flavor:
+    path: ..
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

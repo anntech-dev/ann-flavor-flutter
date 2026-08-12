@@ -10,6 +10,8 @@ import '../generators/ios_generator.dart';
 import '../generators/firebase_generator.dart';
 import '../generators/fastlane_generator.dart';
 import '../generators/melos_generator.dart';
+import '../icon/ios_icon_generator.dart';
+import '../icon/xcconfig_icon_wirer.dart';
 
 class SyncCommand extends Command<void> {
   @override
@@ -61,7 +63,7 @@ class SyncCommand extends Command<void> {
     if (!jsonMode) print('ANN Flavor — syncing $projectRoot\n');
 
     // Step 0 — pre-flight validation
-    if (!jsonMode) print('[0/6] Validating annspec.yaml...');
+    if (!jsonMode) print('[0/7] Validating annspec.yaml...');
     final valid = await _runValidation(projectRoot, jsonMode);
     if (!valid) return;
 
@@ -70,22 +72,40 @@ class SyncCommand extends Command<void> {
     final spec = AnnspecReader.read(projectRoot);
 
     // Step 1 — Dart codegen (fast, deterministic)
-    if (!jsonMode) print('[1/6] Generating Dart flavor file...');
+    if (!jsonMode) print('[1/7] Generating Dart flavor file...');
     DartGenerator.generate(spec, projectRoot);
 
     // Step 2 — Android wiring (fast, deterministic)
-    if (!jsonMode) print('\n[2/6] Wiring Android (Gradle plugin + defaultConfig)...');
+    if (!jsonMode) print('\n[2/7] Wiring Android (Gradle plugin + defaultConfig)...');
     AndroidGenerator.generate(projectRoot, spec);
 
     // Step 3 — iOS wiring (fast, deterministic)
-    if (!jsonMode) print('\n[3/6] Wiring iOS (CocoaPods plugin + xcconfig + Info.plist)...');
+    if (!jsonMode) print('\n[3/7] Wiring iOS (CocoaPods plugin + xcconfig + Info.plist)...');
     IosGenerator.generate(projectRoot, spec);
 
-    // Step 4 — Firebase
+    // Step 4 — iOS app icons (flutter_launcher_icons + xcconfig)
+    final iosPlatform = spec.platform('ios');
+    if (iosPlatform != null && iosPlatform.flavors.isNotEmpty) {
+      final iconGen = IosIconGenerator(projectRoot);
+      for (final flavor in iosPlatform.flavors) {
+        final iconPath = flavor.icon ?? iosPlatform.defaultIcon;
+        if (iconPath == null) continue;
+        if (!jsonMode) print('\n[icon] Generating iOS icon for ${flavor.key}...');
+        try {
+          await iconGen.generateForFlavor(flavor.key, iconPath);
+          wireXcconfig(projectRoot, flavor.key);
+          if (!jsonMode) print('  ✓ Icon generated for ${flavor.key}');
+        } on Exception catch (e) {
+          stderr.writeln('  ✗ Icon generation failed for ${flavor.key}: $e');
+        }
+      }
+    }
+
+    // Step 5 — Firebase
     if (!jsonMode) {
       final label = firebaseMode == 'inline'
-          ? '[4/6] Running flutterfire configure (project_id flavors)...'
-          : '[4/6] Generating firebase.sh script...';
+          ? '[5/7] Running flutterfire configure (project_id flavors)...'
+          : '[5/7] Generating firebase.sh script...';
       print('\n$label');
     }
     try {
@@ -101,10 +121,10 @@ class SyncCommand extends Command<void> {
 
     // Step 5 — Fastlane / iOS gem
     if (spec.integrations?.fastlane == true) {
-      if (!jsonMode) print('\n[5/6] Setting up Fastlane (Gemfile)...');
+      if (!jsonMode) print('\n[6/7] Setting up Fastlane (Gemfile)...');
       FastlaneGenerator.generate(projectRoot);
     } else {
-      if (!jsonMode) print('\n[5/6] Fastlane integration disabled — skipping.');
+      if (!jsonMode) print('\n[6/7] Fastlane integration disabled — skipping.');
     }
     if (spec.platform('ios') != null) {
       _ensureCocoapodsGemEntry(projectRoot, jsonMode: jsonMode);
@@ -112,10 +132,10 @@ class SyncCommand extends Command<void> {
 
     // Step 6 — Melos
     if (spec.integrations?.melos == true) {
-      if (!jsonMode) print('\n[6/6] Setting up Melos scripts (pubspec.yaml)...');
+      if (!jsonMode) print('\n[7/7] Setting up Melos scripts (pubspec.yaml)...');
       MelosGenerator.generate(projectRoot, spec);
     } else {
-      if (!jsonMode) print('\n[6/6] Melos integration disabled — skipping.');
+      if (!jsonMode) print('\n[7/7] Melos integration disabled — skipping.');
     }
 
     if (!jsonMode) {
