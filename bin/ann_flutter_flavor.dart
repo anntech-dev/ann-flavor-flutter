@@ -1,5 +1,6 @@
 import 'package:args/command_runner.dart';
 import '../lib_cli/commands/sync_command.dart';
+import '../lib_cli/commands/sync_web_command.dart';
 import '../lib_cli/commands/validate_command.dart';
 import '../lib_cli/commands/validate_testspec_command.dart';
 import '../lib_cli/commands/firebase_command.dart';
@@ -12,6 +13,7 @@ Future<void> main(List<String> args) async {
     'ANN Flutter Flavor — manage flavors across Android, iOS, Web and Windows.',
   )
     ..addCommand(SyncCommand())
+    ..addCommand(SyncWebCommand())
     ..addCommand(ValidateCommand())
     ..addCommand(ValidateTestspecCommand())
     ..addCommand(FirebaseCommand())

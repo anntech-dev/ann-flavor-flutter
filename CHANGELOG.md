@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.1
+
+### Added
+- **Plan 027**: `sync-web` `_copyToWeb` now excludes `wrangler.toml` (alongside `*.tmpl.*` files) so the rendered Cloudflare Workers config never enters `web/`.
+- `WebTemplateRenderer` adds `{{output_dir}}` template variable — resolves to `build/web/<flavor>` when a flavor is set, or `build/web` when no flavor is used.
+
+---
+
+## 0.7.0
+
+### Added
+- **Plan 026**: New `sync-web` CLI command — selects a web flavor, renders `*.tmpl.*` templates, regenerates `version.json`, generates PWA icons, and copies assets to `web/` (excluding template sources).
+- `sync spec` now processes all web flavors via a `[web]` step that delegates to `sync-web` as a subprocess for each flavor.
+- `web/manifest.json`, `web/index.html`, and `web/version.json` are automatically added to `.gitignore` by `sync spec`.
+- `WebTemplateRenderer` — substitutes `{{variable}}` placeholders in `*.tmpl.*` files using values cascaded from `annspec.yaml`.
+- `WebScaffoldGenerator` — scaffolds starter `manifest.tmpl.json` and `index.tmpl.html` templates via `--scaffold-manifest` / `--scaffold-index` flags.
+- `WebIconGenerator` — generates PWA icon sizes (192, 512, 192-maskable, 512-maskable) into `web_flavors/<flavor>/icons/` using `flutter_launcher_icons`.
+
+---
+
 ## 0.6.0
 
 ### Added

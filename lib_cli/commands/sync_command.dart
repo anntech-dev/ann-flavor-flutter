@@ -101,6 +101,34 @@ class SyncCommand extends Command<void> {
       }
     }
 
+    // Step [web] — web flavors (delegated to sync-web subprocess per flavor)
+    final webPlatform = spec.platform('web');
+    if (webPlatform != null && webPlatform.flavors.isNotEmpty) {
+      if (!jsonMode) print('\n[web] Processing web flavors...');
+      final dart = Platform.executable;
+      for (final flavor in webPlatform.flavors) {
+        if (!jsonMode) print('  Running sync-web for ${flavor.key}...');
+        final result = await Process.run(
+          dart,
+          ['run', 'ann_flutter_flavor', 'sync-web',
+           '--flavor', flavor.key, '--project', projectRoot],
+          workingDirectory: projectRoot,
+        );
+        if (result.exitCode == 0) {
+          if (!jsonMode) {
+            print('  ✓ ${flavor.key}: web assets updated');
+            final out = result.stdout.toString().trim();
+            if (out.isNotEmpty) {
+              print(out.split('\n').map((l) => '    $l').join('\n'));
+            }
+          }
+        } else {
+          stderr.writeln('  ✗ ${flavor.key}: sync-web failed\n${result.stderr}');
+        }
+      }
+      _appendWebGitignore(projectRoot, jsonMode: jsonMode);
+    }
+
     // Step 5 — Firebase
     if (!jsonMode) {
       final label = firebaseMode == 'inline'
@@ -162,6 +190,25 @@ class SyncCommand extends Command<void> {
         '${toAdd.join('\n')}\n';
     file.writeAsStringSync(existing + block);
     print('  ✓ Added Firebase entries to .gitignore');
+  }
+
+  void _appendWebGitignore(String projectRoot, {required bool jsonMode}) {
+    final file = File(p.join(projectRoot, '.gitignore'));
+    final existing = file.existsSync() ? file.readAsStringSync() : '';
+
+    const entries = [
+      'web/manifest.json',
+      'web/index.html',
+      'web/version.json',
+    ];
+
+    final toAdd = entries.where((e) => !existing.contains(e)).toList();
+    if (toAdd.isEmpty) return;
+
+    final block = '\n# Web flavor outputs managed by ann-flavor-tooling\n'
+        '${toAdd.join('\n')}\n';
+    file.writeAsStringSync(existing + block);
+    if (!jsonMode) print('  ✓ Added web entries to .gitignore');
   }
 
   // ── CocoaPods gem management ─────────────────────────────────────────────────
