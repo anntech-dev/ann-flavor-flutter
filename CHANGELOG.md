@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4
+
+### Changed
+- Version bump — no functional changes.
+
+---
+
 ## 0.7.3
 
 ### Fixed
