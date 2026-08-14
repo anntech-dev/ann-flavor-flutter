@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.2
+
+### Changed
+- **`sync-web`**: removed web icon generation — use the app icons command instead.
+- **`sync`**: removed automatic `.gitignore` mutation for web flavor outputs (`manifest.json`, `index.html`, `version.json` are intentionally tracked).
+
+---
+
 ## 0.7.1
 
 ### Added

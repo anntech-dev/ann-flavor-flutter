@@ -5,7 +5,6 @@ import 'package:path/path.dart' as p;
 import '../spec/annspec_reader.dart';
 import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
-import '../icon/web_icon_generator.dart';
 
 class SyncWebCommand extends Command<void> {
   @override
@@ -14,7 +13,7 @@ class SyncWebCommand extends Command<void> {
   @override
   final description =
       'Prepare web/ for a specific flavor: scaffold, render templates, '
-      'generate version.json, generate icons, and copy to web/.';
+      'generate version.json, and copy to web/.';
 
   SyncWebCommand() {
     argParser
@@ -71,23 +70,7 @@ class SyncWebCommand extends Command<void> {
     print('  Generating version.json for $flavorKey...');
     _writeVersionJson(projectRoot, flavorKey, flavor, webPlatform);
 
-    // 4. Generate icons if icon path is set
-    final iconPath = flavor.icon ?? webPlatform.defaultIcon;
-    if (iconPath != null && iconPath.isNotEmpty) {
-      final resolved = p.isAbsolute(iconPath)
-          ? iconPath
-          : p.join(projectRoot, iconPath);
-      if (File(resolved).existsSync()) {
-        print('  Generating web icons for $flavorKey...');
-        await WebIconGenerator(projectRoot)
-            .generateForFlavor(flavorKey, resolved);
-      } else {
-        stderr.writeln(
-            '  Warning: icon path "$iconPath" not found — skipping icon generation.');
-      }
-    }
-
-    // 5. Copy web_flavors/<flavor>/ → web/ (excluding *.tmpl.*)
+    // 4. Copy web_flavors/<flavor>/ → web/ (excluding *.tmpl.* and wrangler.toml)
     print('  Copying web_flavors/$flavorKey/ → web/...');
     _copyToWeb(projectRoot, flavorKey);
 
