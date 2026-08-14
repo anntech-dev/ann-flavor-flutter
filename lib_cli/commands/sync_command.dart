@@ -200,10 +200,12 @@ class SyncCommand extends Command<void> {
     final file = File(p.join(projectRoot, 'Gemfile'));
     var existing = file.existsSync() ? file.readAsStringSync() : '';
     var changed = false;
-    if (!existing.contains(podGemLine)) {
+    final hasPod    = existing.contains("gem 'cocoapods'") || existing.contains('gem "cocoapods"');
+    final hasPlugin = existing.contains("gem 'ann-flavor-cocoapods'") || existing.contains('gem "ann-flavor-cocoapods"');
+    if (!hasPod) {
       existing = existing.trimRight() + '\n$comment\n$podGemLine\n$pluginGemLine\n';
       changed = true;
-    } else if (!existing.contains(pluginGemLine)) {
+    } else if (!hasPlugin) {
       existing = existing.trimRight() + '\n$pluginGemLine\n';
       changed = true;
     }

@@ -275,6 +275,15 @@ void main() {
       expect("gem 'ann-flavor-cocoapods'".allMatches(content).length, equals(1),
           reason: 'ann-flavor-cocoapods gem must not be duplicated');
     });
+
+    test('does not add cocoapods when already present with double quotes', () async {
+      _writeFirebaseSpec(tempDir);
+      File('${tempDir.path}/Gemfile').writeAsStringSync('gem "cocoapods"\n');
+      await _runSync(tempDir, []);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      final podCount = RegExp(r"""gem ['"]cocoapods['"]""").allMatches(content).length;
+      expect(podCount, equals(1), reason: 'cocoapods gem must not be duplicated when using double quotes');
+    });
   });
 
   group('sync command — appleId in generated Dart', () {

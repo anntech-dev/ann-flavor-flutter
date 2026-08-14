@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.3
+
+### Fixed
+- **`sync`**: Gemfile duplicate detection now recognises both single and double quote styles for `gem "cocoapods"`.
+
+---
+
 ## 0.7.2
 
 ### Changed
