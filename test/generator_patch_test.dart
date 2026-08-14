@@ -83,7 +83,7 @@ void main() {
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
       expect(content, contains("# Added by ann_flutter_flavor"));
       final commentIdx = content.indexOf('# Added by ann_flutter_flavor');
-      final pluginIdx  = content.indexOf("plugin 'ann-ios-flavorize'");
+      final pluginIdx  = content.indexOf("plugin 'ann-flavor-cocoapods'");
       expect(pluginIdx, greaterThan(commentIdx),
           reason: 'Comment must appear immediately before the plugin line');
       // Ensure they are adjacent (only a newline between them)
@@ -95,7 +95,7 @@ void main() {
       await _runSync(tempDir);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
-      expect('ann-ios-flavorize'.allMatches(content).length, 1,
+      expect('ann-flavor-cocoapods'.allMatches(content).length, 1,
           reason: 'Plugin line should appear exactly once');
     });
   });

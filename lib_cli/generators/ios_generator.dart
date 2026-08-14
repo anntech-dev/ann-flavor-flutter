@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../model/annspec_model.dart';
 
-const _podPluginName = 'ann-ios-flavorize';
+const _podPluginName = 'ann-flavor-cocoapods';
 
 /// Handles iOS wiring: CocoaPods plugin, per-flavor xcconfig files, Info.plist patches.
 class IosGenerator {

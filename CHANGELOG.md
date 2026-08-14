@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.5
+
+### Fixed
+- `sync spec` now writes `plugin 'ann-flavor-cocoapods'` in the Podfile instead of `plugin 'ann-ios-flavorize'`, matching the actual gem name in the Gemfile.
+
+---
+
 ## 0.7.4
 
 ### Changed
