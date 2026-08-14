@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.6
+
+### Fixed
+- `sync spec` now writes both `require 'ann-flavor-cocoapods'` and `require 'annai-flutter-flavor'` in the Podfile header instead of a `plugin` directive.
+
+---
+
 ## 0.7.5
 
 ### Fixed

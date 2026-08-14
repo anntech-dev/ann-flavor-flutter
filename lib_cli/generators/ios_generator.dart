@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../model/annspec_model.dart';
 
-const _podPluginName = 'ann-flavor-cocoapods';
+const _annHeader = '# Added by ann_flutter_flavor — multi-flavor iOS build configuration';
 
 /// Handles iOS wiring: CocoaPods plugin, per-flavor xcconfig files, Info.plist patches.
 class IosGenerator {
@@ -35,14 +35,17 @@ class IosGenerator {
     }
 
     var content = file.readAsStringSync();
-    if (content.contains(_podPluginName)) {
-      print('  ✓ ios/Podfile already has ANN CocoaPods plugin.');
+    if (content.contains(_annHeader)) {
+      print('  ✓ ios/Podfile already has ANN CocoaPods requires.');
       return;
     }
 
-    content = "# Added by ann_flutter_flavor — multi-flavor iOS build configuration\nplugin '$_podPluginName'\n" + content;
+    const header = "$_annHeader\n"
+        "require 'ann-flavor-cocoapods'\n"
+        "require 'annai-flutter-flavor'\n";
+    content = header + content;
     file.writeAsStringSync(content);
-    print('  ✓ Patched ios/Podfile with ANN CocoaPods plugin.');
+    print('  ✓ Patched ios/Podfile with ANN CocoaPods requires.');
   }
 
   // ── xcconfig generation ────────────────────────────────────────────────────

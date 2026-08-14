@@ -78,25 +78,28 @@ void main() {
     });
     tearDown(() => tempDir.deleteSync(recursive: true));
 
-    test('Podfile gets comment before plugin line', () async {
+    test('Podfile gets comment and both require lines', () async {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
-      expect(content, contains("# Added by ann_flutter_flavor"));
-      final commentIdx = content.indexOf('# Added by ann_flutter_flavor');
-      final pluginIdx  = content.indexOf("plugin 'ann-flavor-cocoapods'");
-      expect(pluginIdx, greaterThan(commentIdx),
-          reason: 'Comment must appear immediately before the plugin line');
-      // Ensure they are adjacent (only a newline between them)
-      final between = content.substring(commentIdx, pluginIdx);
-      expect(between.trim(), equals('# Added by ann_flutter_flavor — multi-flavor iOS build configuration'));
+      expect(content, contains("# Added by ann_flutter_flavor — multi-flavor iOS build configuration"));
+      expect(content, contains("require 'ann-flavor-cocoapods'"));
+      expect(content, contains("require 'annai-flutter-flavor'"));
+      // Comment must appear before both requires
+      final commentIdx  = content.indexOf('# Added by ann_flutter_flavor');
+      final require1Idx = content.indexOf("require 'ann-flavor-cocoapods'");
+      final require2Idx = content.indexOf("require 'annai-flutter-flavor'");
+      expect(require1Idx, greaterThan(commentIdx), reason: 'ann-flavor-cocoapods require must follow the comment');
+      expect(require2Idx, greaterThan(commentIdx), reason: 'annai-flutter-flavor require must follow the comment');
     });
 
     test('Podfile is not patched twice on re-run', () async {
       await _runSync(tempDir);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
-      expect('ann-flavor-cocoapods'.allMatches(content).length, 1,
-          reason: 'Plugin line should appear exactly once');
+      expect("require 'ann-flavor-cocoapods'".allMatches(content).length, 1,
+          reason: 'ann-flavor-cocoapods require should appear exactly once');
+      expect("require 'annai-flutter-flavor'".allMatches(content).length, 1,
+          reason: 'annai-flutter-flavor require should appear exactly once');
     });
   });
 
