@@ -193,6 +193,9 @@ class SyncCommand extends Command<void> {
 
   // ── CocoaPods gem management ─────────────────────────────────────────────────
 
+  static bool _gemPresent(String content, String gemName) =>
+      RegExp("""gem\\s+['""]$gemName['""]""").hasMatch(content);
+
   void _ensureCocoapodsGemEntry(String projectRoot, {required bool jsonMode}) {
     const podGemLine    = "gem 'cocoapods'";
     const pluginGemLine = "gem 'ann-flavor-cocoapods'";
@@ -200,8 +203,8 @@ class SyncCommand extends Command<void> {
     final file = File(p.join(projectRoot, 'Gemfile'));
     var existing = file.existsSync() ? file.readAsStringSync() : '';
     var changed = false;
-    final hasPod    = existing.contains("gem 'cocoapods'") || existing.contains('gem "cocoapods"');
-    final hasPlugin = existing.contains("gem 'ann-flavor-cocoapods'") || existing.contains('gem "ann-flavor-cocoapods"');
+    final hasPod    = _gemPresent(existing, 'cocoapods');
+    final hasPlugin = _gemPresent(existing, 'ann-flavor-cocoapods');
     if (!hasPod) {
       existing = existing.trimRight() + '\n$comment\n$podGemLine\n$pluginGemLine\n';
       changed = true;

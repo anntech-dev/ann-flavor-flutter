@@ -119,7 +119,7 @@ void main() {
       final content = gemfile.readAsStringSync();
       expect(content, contains('# Added by ann_flutter_flavor — Fastlane integration'));
       final commentIdx = content.indexOf('# Added by ann_flutter_flavor — Fastlane integration');
-      final gemIdx     = content.indexOf('gem "ann-flavor-flutter"');
+      final gemIdx     = content.indexOf("gem 'ann-flavor-flutter'");
       expect(gemIdx, greaterThan(commentIdx),
           reason: 'Comment must appear before the gem line');
     });
@@ -130,7 +130,7 @@ void main() {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
       expect(content, contains('# Added by ann_flutter_flavor — Fastlane integration'));
-      expect(content, contains('gem "ann-flavor-flutter"'));
+      expect(content, contains("gem 'ann-flavor-flutter'"));
     });
 
     test('Gemfile is not patched twice on re-run', () async {
@@ -139,6 +139,15 @@ void main() {
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
       expect('ann-flavor-flutter'.allMatches(content).length, 1,
           reason: 'gem line should appear exactly once');
+    });
+
+    test('does not add ann-flavor-flutter when already present with double quotes', () async {
+      File('${tempDir.path}/Gemfile').writeAsStringSync(
+          'source "https://rubygems.org"\ngem "fastlane"\ngem "ann-flavor-flutter"\n');
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      expect('ann-flavor-flutter'.allMatches(content).length, 1,
+          reason: 'gem must not be duplicated when already present with double quotes');
     });
   });
 

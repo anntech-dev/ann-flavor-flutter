@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.7
+
+### Fixed
+- Gemfile duplicate detection for `ann-flavor-flutter` now recognises both single and double quote styles, preventing duplicate gem lines.
+
+---
+
 ## 0.7.6
 
 ### Fixed

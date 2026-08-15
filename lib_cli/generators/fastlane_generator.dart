@@ -2,21 +2,19 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 class FastlaneGenerator {
-  static const _requiredLines = [
-    'source "https://rubygems.org"',
-    'gem "fastlane"',
-    // gem "ann-flavor-flutter" handled separately — needs a comment prefix
-  ];
+  static const _annGemLine    = "gem 'ann-flavor-flutter'";
+  static const _annGemComment = '# Added by ann_flutter_flavor — Fastlane integration';
 
-  static const _annGemLine     = 'gem "ann-flavor-flutter"';
-  static const _annGemComment  = '# Added by ann_flutter_flavor — Fastlane integration';
+  static bool _gemPresent(String content, String gemName) =>
+      RegExp("""gem\\s+['""]$gemName['""]""").hasMatch(content);
 
   static void generate(String projectRoot) {
     final file = File(p.join(projectRoot, 'Gemfile'));
 
     if (!file.existsSync()) {
       final content = [
-        ..._requiredLines,
+        'source "https://rubygems.org"',
+        'gem "fastlane"',
         _annGemComment,
         _annGemLine,
       ].join('\n') + '\n';
@@ -28,13 +26,17 @@ class FastlaneGenerator {
     var existing = file.readAsStringSync();
     var changed = false;
 
-    final missingLines = _requiredLines.where((l) => !existing.contains(l)).toList();
-    if (missingLines.isNotEmpty) {
-      existing = existing.trimRight() + '\n' + missingLines.join('\n') + '\n';
+    if (!_gemPresent(existing, 'https://rubygems.org') && !existing.contains('rubygems.org')) {
+      existing = existing.trimRight() + '\nsource "https://rubygems.org"\n';
       changed = true;
     }
 
-    if (!existing.contains(_annGemLine)) {
+    if (!_gemPresent(existing, 'fastlane')) {
+      existing = existing.trimRight() + '\ngem "fastlane"\n';
+      changed = true;
+    }
+
+    if (!_gemPresent(existing, 'ann-flavor-flutter')) {
       existing = existing.trimRight() + '\n$_annGemComment\n$_annGemLine\n';
       changed = true;
     }
