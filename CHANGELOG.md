@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.10
+
+### Fixed
+- Bumped bundled Gradle plugin version to 2.3.5 — `google-services.json` is no longer deleted after each build, preventing missing file errors on subsequent runs.
+
+---
+
 ## 0.7.9
 
 ### Changed
