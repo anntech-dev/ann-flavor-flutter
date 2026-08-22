@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.11
+
+### Fixed
+- Bumped bundled Gradle plugin version to 2.3.6 — `FirebaseCopyTask` now correctly handles `profile` build type by reusing the `release` Firebase config (fixes #45).
+- Bumped bundled CocoaPods plugin version to 0.1.17 — Firebase plist build phase path corrected (fixes #46).
+
+---
+
 ## 0.7.10
 
 ### Fixed
