@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.9
+
+### Changed
+- Version bump for pub.dev release — no functional changes.
+
+---
+
 ## 0.7.8
 
 ### Changed
