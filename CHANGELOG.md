@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.8
+
+### Changed
+- Bumped bundled Gradle plugin version to 2.3.4 — `AndroidManifest.xml` is no longer rewritten on every build when there are no logical changes (fixes #44).
+
+---
+
 ## 0.7.7
 
 ### Fixed
