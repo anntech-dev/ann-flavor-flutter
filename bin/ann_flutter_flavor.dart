@@ -6,6 +6,7 @@ import '../lib_cli/commands/validate_testspec_command.dart';
 import '../lib_cli/commands/firebase_command.dart';
 import '../lib_cli/commands/summary_command.dart';
 import '../lib_cli/commands/doctor_command.dart';
+import '../lib_cli/commands/upgrade_command.dart';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<void>(
@@ -18,7 +19,8 @@ Future<void> main(List<String> args) async {
     ..addCommand(ValidateTestspecCommand())
     ..addCommand(FirebaseCommand())
     ..addCommand(SummaryCommand())
-    ..addCommand(DoctorCommand());
+    ..addCommand(DoctorCommand())
+    ..addCommand(UpgradeCommand());
 
   try {
     await runner.run(args);

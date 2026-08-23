@@ -35,7 +35,16 @@ class AnnspecReader {
           )
         : null;
 
-    return AnnspecModel(platforms: platforms, integrations: integrations);
+    final toolingMap = doc['tooling'] as YamlMap?;
+    final tooling = toolingMap == null
+        ? null
+        : AnnspecTooling(
+            gradlePlugin:    toolingMap['gradle_plugin']    as String?,
+            cocoapodsPlugin: toolingMap['cocoapods_plugin'] as String?,
+            fastlanePlugin:  toolingMap['fastlane_plugin']  as String?,
+          );
+
+    return AnnspecModel(platforms: platforms, integrations: integrations, tooling: tooling);
   }
 
   static AnnspecPlatform _parsePlatform(String key, YamlMap map) {

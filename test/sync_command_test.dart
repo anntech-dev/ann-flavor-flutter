@@ -333,4 +333,179 @@ app:
           reason: 'appleId should be null in generated Dart when not set in spec');
     });
   });
+
+  group('sync command — tooling: Gradle plugin version', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_tooling_gradle_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    void writeAndroidSpec(Directory dir, {String? gradlePlugin}) {
+      final toolingBlock = gradlePlugin != null
+          ? 'tooling:\n  gradle_plugin: $gradlePlugin\n'
+          : '';
+      File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+${toolingBlock}app:
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+''');
+      // Create minimal Android project structure
+      Directory('${dir.path}/android').createSync();
+      File('${dir.path}/android/settings.gradle.kts').writeAsStringSync('''
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+plugins {
+    id("dev.flutter.flutter-plugin-loader") version "1.0.0" apply false
+    id("com.android.application") version "8.7.0" apply false
+    id("org.jetbrains.kotlin.android") version "1.7.10" apply false
+}
+include(":app")
+''');
+      Directory('${dir.path}/android/app').createSync();
+      File('${dir.path}/android/app/build.gradle.kts').writeAsStringSync('''
+plugins {
+    id("com.android.application")
+    id("dev.flutter.flutter-gradle-plugin")
+    id("org.jetbrains.kotlin.android")
+}
+''');
+    }
+
+    test('gradle_plugin: ^2.3.6 — settings.gradle.kts patched with version "2.3.6"', () async {
+      writeAndroidSpec(tempDir, gradlePlugin: '^2.3.6');
+      final result = await _runSync(tempDir, []);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final settings = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
+      expect(settings, contains('"2.3.6"'),
+          reason: 'version from tooling.gradle_plugin should appear in settings.gradle.kts');
+    });
+
+    test('gradle_plugin absent — falls back to kGradlePluginVersion', () async {
+      writeAndroidSpec(tempDir);
+      final result = await _runSync(tempDir, []);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final settings = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
+      // The fallback constant is in plugin_versions.dart; just verify ANN plugin was wired
+      expect(settings, contains('dev.anntech.flavorize'),
+          reason: 'ANN Gradle plugin should be wired even without tooling.gradle_plugin');
+    });
+  });
+
+  group('sync command — tooling: CocoaPods gem version', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_tooling_cocoapods_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    void writeIosSpec(Directory dir, {String? cocoapodsPlugin}) {
+      final toolingBlock = cocoapodsPlugin != null
+          ? 'tooling:\n  cocoapods_plugin: $cocoapodsPlugin\n'
+          : '';
+      File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+${toolingBlock}app:
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+''');
+    }
+
+    test("cocoapods_plugin: ^0.1.17 — Gemfile contains '~> 0.1.17'", () async {
+      writeIosSpec(tempDir, cocoapodsPlugin: '^0.1.17');
+      await _runSync(tempDir, []);
+      final gemfile = File('${tempDir.path}/Gemfile');
+      expect(gemfile.existsSync(), isTrue);
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("gem 'ann-flavor-cocoapods', '~> 0.1.17'"),
+          reason: 'versioned Gemfile entry should use pessimistic constraint');
+    });
+
+    test('cocoapods_plugin absent — Gemfile contains unversioned entry', () async {
+      writeIosSpec(tempDir);
+      await _runSync(tempDir, []);
+      final gemfile = File('${tempDir.path}/Gemfile');
+      expect(gemfile.existsSync(), isTrue);
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("gem 'ann-flavor-cocoapods'"),
+          reason: 'Gemfile should still include ann-flavor-cocoapods without version');
+      expect(content, isNot(contains("'~>")),
+          reason: 'no pessimistic constraint when cocoapods_plugin is absent');
+    });
+  });
+
+  group('sync command — tooling: Fastlane gem version', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_tooling_fastlane_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    void writeFastlaneSpec(Directory dir, {String? fastlanePlugin}) {
+      final toolingBlock = fastlanePlugin != null
+          ? 'tooling:\n  fastlane_plugin: $fastlanePlugin\n'
+          : '';
+      File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+${toolingBlock}app:
+  integrations:
+    fastlane: true
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+''');
+    }
+
+    test("fastlane_plugin: ^0.4.4 — Gemfile contains '~> 0.4.4'", () async {
+      writeFastlaneSpec(tempDir, fastlanePlugin: '^0.4.4');
+      await _runSync(tempDir, []);
+      final gemfile = File('${tempDir.path}/Gemfile');
+      expect(gemfile.existsSync(), isTrue);
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("gem 'fastlane-plugin-ann_fastlane_flavor', '~> 0.4.4'"),
+          reason: 'versioned Fastlane Gemfile entry should use pessimistic constraint');
+    });
+
+    test('fastlane_plugin absent — Gemfile contains unversioned entry', () async {
+      writeFastlaneSpec(tempDir);
+      await _runSync(tempDir, []);
+      final gemfile = File('${tempDir.path}/Gemfile');
+      expect(gemfile.existsSync(), isTrue);
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("gem 'fastlane-plugin-ann_fastlane_flavor'"),
+          reason: 'Gemfile should still include fastlane plugin without version');
+    });
+  });
 }

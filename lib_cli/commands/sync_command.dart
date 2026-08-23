@@ -147,14 +147,19 @@ class SyncCommand extends Command<void> {
     }
 
     // Step 5 — Fastlane / iOS gem
+    final cocoapodsConstraint = _stripCaret(spec.tooling?.cocoapodsPlugin);
+    final fastlaneConstraint  = _stripCaret(spec.tooling?.fastlanePlugin);
     if (spec.integrations?.fastlane == true) {
       if (!jsonMode) print('\n[6/7] Setting up Fastlane (Gemfile)...');
       FastlaneGenerator.generate(projectRoot);
+      _ensureFastlaneGemEntry(projectRoot,
+          jsonMode: jsonMode, versionConstraint: fastlaneConstraint);
     } else {
       if (!jsonMode) print('\n[6/7] Fastlane integration disabled — skipping.');
     }
     if (spec.platform('ios') != null) {
-      _ensureCocoapodsGemEntry(projectRoot, jsonMode: jsonMode);
+      _ensureCocoapodsGemEntry(projectRoot,
+          jsonMode: jsonMode, versionConstraint: cocoapodsConstraint);
     }
 
     // Step 6 — Melos
@@ -196,25 +201,85 @@ class SyncCommand extends Command<void> {
   static bool _gemPresent(String content, String gemName) =>
       RegExp("""gem\\s+['""]$gemName['""]""").hasMatch(content);
 
-  void _ensureCocoapodsGemEntry(String projectRoot, {required bool jsonMode}) {
-    const podGemLine    = "gem 'cocoapods'";
-    const pluginGemLine = "gem 'ann-flavor-cocoapods'";
-    const comment       = '# Added by ann_flutter_flavor — CocoaPods flavor plugin';
+  static String? _stripCaret(String? constraint) {
+    if (constraint == null) return null;
+    return constraint.startsWith('^') ? constraint.substring(1) : constraint;
+  }
+
+  void _ensureCocoapodsGemEntry(
+    String projectRoot, {
+    required bool jsonMode,
+    String? versionConstraint,
+  }) {
+    const podGemLine = "gem 'cocoapods'";
+    const comment    = '# Added by ann_flutter_flavor — CocoaPods flavor plugin';
+    final gemName    = 'ann-flavor-cocoapods';
+    final pluginGemLine = versionConstraint != null
+        ? "gem '$gemName', '~> $versionConstraint'"
+        : "gem '$gemName'";
+
     final file = File(p.join(projectRoot, 'Gemfile'));
     var existing = file.existsSync() ? file.readAsStringSync() : '';
     var changed = false;
+
     final hasPod    = _gemPresent(existing, 'cocoapods');
-    final hasPlugin = _gemPresent(existing, 'ann-flavor-cocoapods');
+    final hasPlugin = _gemPresent(existing, gemName);
+
     if (!hasPod) {
       existing = existing.trimRight() + '\n$comment\n$podGemLine\n$pluginGemLine\n';
       changed = true;
     } else if (!hasPlugin) {
       existing = existing.trimRight() + '\n$pluginGemLine\n';
       changed = true;
+    } else if (versionConstraint != null) {
+      // Update version in-place if present but stale.
+      final updated = existing.replaceFirstMapped(
+        RegExp(r"gem\s+'" + RegExp.escape(gemName) + r"'(?:\s*,\s*'[^']*')?"),
+        (_) => pluginGemLine,
+      );
+      if (updated != existing) {
+        existing = updated;
+        changed = true;
+      }
     }
+
     if (!changed) return;
     file.writeAsStringSync(existing);
     if (!jsonMode) print("  ✓ Updated Gemfile with CocoaPods gems");
+  }
+
+  void _ensureFastlaneGemEntry(
+    String projectRoot, {
+    required bool jsonMode,
+    String? versionConstraint,
+  }) {
+    const gemName = 'fastlane-plugin-ann_fastlane_flavor';
+    final entry = versionConstraint != null
+        ? "gem '$gemName', '~> $versionConstraint'"
+        : "gem '$gemName'";
+
+    final file = File(p.join(projectRoot, 'Gemfile'));
+    if (!file.existsSync()) return;
+    var existing = file.readAsStringSync();
+    var changed = false;
+
+    if (!_gemPresent(existing, gemName)) {
+      existing = existing.trimRight() + '\n$entry\n';
+      changed = true;
+    } else if (versionConstraint != null) {
+      final updated = existing.replaceFirstMapped(
+        RegExp(r"gem\s+'" + RegExp.escape(gemName) + r"'(?:\s*,\s*'[^']*')?"),
+        (_) => entry,
+      );
+      if (updated != existing) {
+        existing = updated;
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    file.writeAsStringSync(existing);
+    if (!jsonMode) print("  ✓ Updated Gemfile with Fastlane flavor plugin");
   }
 
   // ── Pre-flight validation ───────────────────────────────────────────────────

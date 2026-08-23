@@ -162,8 +162,9 @@ class AnnspecPlatform {
 class AnnspecModel {
   final List<AnnspecPlatform> platforms;
   final AnnspecIntegrations? integrations;
+  final AnnspecTooling? tooling;
 
-  AnnspecModel({required this.platforms, this.integrations});
+  AnnspecModel({required this.platforms, this.integrations, this.tooling});
 
   AnnspecPlatform? platform(String key) =>
       platforms.where((p) => p.key == key).firstOrNull;
@@ -217,4 +218,15 @@ class AnnspecIntegrations {
   final bool melos;
   final bool firebase;
   AnnspecIntegrations({this.fastlane = false, this.melos = false, this.firebase = false});
+}
+
+class AnnspecTooling {
+  final String? gradlePlugin;
+  final String? cocoapodsPlugin;
+  final String? fastlanePlugin;
+  const AnnspecTooling({
+    this.gradlePlugin,
+    this.cocoapodsPlugin,
+    this.fastlanePlugin,
+  });
 }

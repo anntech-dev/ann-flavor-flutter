@@ -36,7 +36,8 @@ class AndroidGenerator {
       print('  ⚠ No android/ directory found — skipping Android wiring.');
       return;
     }
-    _patchSettings(androidDir, kGradlePluginVersion);
+    final gradleVersion = _resolveGradleVersion(spec);
+    _patchSettings(androidDir, gradleVersion);
     _patchAppBuild(androidDir);
 
     if (spec != null) {
@@ -45,6 +46,12 @@ class AndroidGenerator {
         _generateFlavorManifests(androidDir, android);
       }
     }
+  }
+
+  static String _resolveGradleVersion(AnnspecModel? spec) {
+    final constraint = spec?.tooling?.gradlePlugin;
+    if (constraint == null) return kGradlePluginVersion;
+    return constraint.startsWith('^') ? constraint.substring(1) : constraint;
   }
 
   static void _patchSettings(Directory androidDir, String pluginVersion) {

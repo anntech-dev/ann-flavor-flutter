@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:yaml/yaml.dart';
 import '../versions.g.dart';
 
 class DoctorCommand extends Command<void> {
@@ -46,13 +47,33 @@ class DoctorCommand extends Command<void> {
 
   // ── Row collection ─────────────────────────────────────────────────────────
 
-  List<_VersionRow> _collectRows(String projectRoot) => [
-    _checkFlutter(projectRoot),
-    _checkGradle(projectRoot),
-    _checkCocoapods(projectRoot),
-    _checkFastlane(projectRoot),
-    _studioRow(),
-  ];
+  List<_VersionRow> _collectRows(String projectRoot) {
+    final tooling = _readTooling(projectRoot);
+    return [
+      _checkFlutter(projectRoot),
+      _checkGradle(projectRoot, tooling['gradle_plugin'] as String?),
+      _checkCocoapods(projectRoot, tooling['cocoapods_plugin'] as String?),
+      _checkFastlane(projectRoot, tooling['fastlane_plugin'] as String?),
+      _studioRow(),
+    ];
+  }
+
+  Map<String, dynamic> _readTooling(String root) {
+    try {
+      final f = File(p.join(root, 'annspec.yaml'));
+      if (!f.existsSync()) return {};
+      final doc = loadYaml(f.readAsStringSync());
+      if (doc is! YamlMap) return {};
+      final t = doc['tooling'];
+      if (t is! YamlMap) return {};
+      return {
+        for (final e in t.entries)
+          e.key as String: (e.value as String?)?.replaceFirst('^', ''),
+      };
+    } catch (_) {
+      return {};
+    }
+  }
 
   _VersionRow _checkFlutter(String root) {
     final lockFile = File(p.join(root, 'pubspec.lock'));
@@ -67,23 +88,31 @@ class DoctorCommand extends Command<void> {
     return _VersionRow('Flutter package', match?.group(1), kTargetFlutterVersion);
   }
 
-  _VersionRow _checkGradle(String root) {
+  _VersionRow _checkGradle(String root, String? targetVersion) {
+    if (targetVersion == null) {
+      return _VersionRow.skipped('Gradle plugin',
+          'Add tooling.gradle_plugin to annspec.yaml to enable version check');
+    }
     File? file;
     for (final name in ['settings.gradle.kts', 'settings.gradle']) {
       final f = File(p.join(root, 'android', name));
       if (f.existsSync()) { file = f; break; }
     }
     if (file == null) {
-      return _VersionRow('Gradle plugin', null, kTargetGradleVersion,
+      return _VersionRow('Gradle plugin', null, targetVersion,
           reason: 'android/settings.gradle.kts not found');
     }
     final match = RegExp(
             r'id\("dev\.anntech\.flavorize"\)\s+version\s+"([^"]+)"')
         .firstMatch(file.readAsStringSync());
-    return _VersionRow('Gradle plugin', match?.group(1), kTargetGradleVersion);
+    return _VersionRow('Gradle plugin', match?.group(1), targetVersion);
   }
 
-  _VersionRow _checkCocoapods(String root) {
+  _VersionRow _checkCocoapods(String root, String? targetVersion) {
+    if (targetVersion == null) {
+      return _VersionRow.skipped('CocoaPods plugin',
+          'Add tooling.cocoapods_plugin to annspec.yaml to enable version check');
+    }
     File? file;
     for (final candidate in [
       p.join(root, 'Gemfile.lock'),
@@ -93,25 +122,29 @@ class DoctorCommand extends Command<void> {
       if (f.existsSync()) { file = f; break; }
     }
     if (file == null) {
-      return _VersionRow('CocoaPods plugin', null, kTargetCocoapodsVersion,
+      return _VersionRow('CocoaPods plugin', null, targetVersion,
           reason: 'Gemfile.lock not found');
     }
     final match = RegExp(r'ann-flavor-cocoapods \(([^)]+)\)')
         .firstMatch(file.readAsStringSync());
-    return _VersionRow('CocoaPods plugin', match?.group(1), kTargetCocoapodsVersion);
+    return _VersionRow('CocoaPods plugin', match?.group(1), targetVersion);
   }
 
-  _VersionRow _checkFastlane(String root) {
+  _VersionRow _checkFastlane(String root, String? targetVersion) {
+    if (targetVersion == null) {
+      return _VersionRow.skipped('Fastlane plugin',
+          'Add tooling.fastlane_plugin to annspec.yaml to enable version check');
+    }
     final file = File(p.join(root, 'Gemfile.lock'));
     if (!file.existsSync()) {
-      return _VersionRow('Fastlane plugin', null, kTargetFastlaneVersion,
+      return _VersionRow('Fastlane plugin', null, targetVersion,
           reason: 'Gemfile.lock not found');
     }
     final content = file.readAsStringSync();
     final match = RegExp(r'ann-flavor-fastlane \(([^)]+)\)')
             .firstMatch(content) ??
         RegExp(r'annai-flutter-flavor \(([^)]+)\)').firstMatch(content);
-    return _VersionRow('Fastlane plugin', match?.group(1), kTargetFastlaneVersion);
+    return _VersionRow('Fastlane plugin', match?.group(1), targetVersion);
   }
 
   _VersionRow _studioRow() => _VersionRow.notDetectable('Studio plugin', kTargetStudioVersion);
@@ -152,6 +185,11 @@ class _VersionRow {
   _VersionRow.notDetectable(this.plugin, this.target)
       : current = '–',
         status  = 'ℹ not detectable';
+
+  _VersionRow.skipped(this.plugin, String reason)
+      : current = '–',
+        target  = '–',
+        status  = 'ℹ skipped ($reason)';
 
   static String _computeStatus(String current, String target) {
     final cmp = _compareSemver(current, target);

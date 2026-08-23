@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0
+
+### Added
+- `tooling:` section in `annspec.yaml` — declare `gradle_plugin`, `cocoapods_plugin`, and `fastlane_plugin` version constraints. `sync` reads these to patch `android/settings.gradle.kts` and `Gemfile` with the specified versions.
+- `upgrade` CLI command — resolves the latest matching version for each `tooling:` field from Maven Central (Gradle) or RubyGems (CocoaPods/Fastlane), patches `annspec.yaml`, and runs `sync`. Exact pins (`x.y.z`) are skipped; absent fields are skipped.
+
+### Changed
+- `kGradlePluginVersion` is now a fallback used only when `tooling.gradle_plugin` is absent from `annspec.yaml`. Set `tooling.gradle_plugin` in your spec to manage the version explicitly.
+- `sync` Gemfile patching for CocoaPods and Fastlane now writes pessimistic version constraints (`~> x.y.z`) when a version is declared in `tooling:`.
+
+---
+
 ## 0.7.11
 
 ### Fixed
