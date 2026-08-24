@@ -1,225 +1,300 @@
 import 'dart:io';
-import 'package:yaml/yaml.dart';
 import 'package:path/path.dart' as p;
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 import '../model/annspec_model.dart';
-// AnnspecBuildTypeConfig is defined in annspec_model.dart
 
+/// Reads annspec.yaml via the shared core (ADR-008) — parsing and cascade
+/// merging are the core's responsibility; this class only maps the core's
+/// model onto the CLI's own `Annspec*` shape that the rest of `lib_cli/`
+/// already depends on.
 class AnnspecReader {
   static AnnspecModel read(String projectRoot) {
     final file = File(p.join(projectRoot, 'annspec.yaml'));
     if (!file.existsSync()) {
       throw Exception('annspec.yaml not found at ${file.path}');
     }
-    final doc = loadYaml(file.readAsStringSync()) as YamlMap;
-    if (doc['app'] == null) {
-      final hint = doc['annai_app'] != null
+
+    core.AnnSpec spec;
+    try {
+      spec = core.AnnSpecParser.parse(file.readAsStringSync());
+    } catch (e) {
+      final raw = file.readAsStringSync();
+      final hint = raw.contains('annai_app:')
           ? '\n  Hint: rename the root key from "annai_app:" to "app:" — the key was changed in v0.2.0.'
-          : '\n  annspec.yaml must have a top-level "app:" key containing android/ios/web/windows sections.';
-      throw Exception('annspec.yaml is missing the required "app:" root key.$hint');
+          : '';
+      throw Exception('Failed to parse annspec.yaml: $e$hint');
     }
-    final app = doc['app'] as YamlMap;
+
     final platforms = <AnnspecPlatform>[];
+    if (spec.app.android != null) platforms.add(_mapAndroid(spec.app.android!));
+    if (spec.app.ios != null) platforms.add(_mapIos(spec.app.ios!));
+    if (spec.app.web != null) platforms.add(_mapWeb(spec.app.web!));
+    if (spec.app.windows != null) platforms.add(_mapWindows(spec.app.windows!));
 
-    for (final platformKey in ['android', 'ios', 'web', 'windows']) {
-      final platformMap = app[platformKey] as YamlMap?;
-      if (platformMap == null) continue;
-      platforms.add(_parsePlatform(platformKey, platformMap));
-    }
+    final integrations = spec.app.integrations == null
+        ? null
+        : AnnspecIntegrations(
+            fastlane: spec.app.integrations!.fastlane,
+            melos:    spec.app.integrations!.melos,
+            firebase: spec.app.integrations!.firebase,
+          );
 
-    final integrationsMap = app['integrations'] as YamlMap?;
-    final integrations = integrationsMap != null
-        ? AnnspecIntegrations(
-            fastlane: integrationsMap['fastlane'] as bool? ?? false,
-            melos:    integrationsMap['melos']    as bool? ?? false,
-            firebase: integrationsMap['firebase'] as bool? ?? false,
-          )
-        : null;
-
-    final toolingMap = doc['tooling'] as YamlMap?;
-    final tooling = toolingMap == null
+    final tooling = spec.tooling == null
         ? null
         : AnnspecTooling(
-            gradlePlugin:    toolingMap['gradle_plugin']    as String?,
-            cocoapodsPlugin: toolingMap['cocoapods_plugin'] as String?,
-            fastlanePlugin:  toolingMap['fastlane_plugin']  as String?,
+            gradlePlugin:    spec.tooling!.gradlePlugin,
+            cocoapodsPlugin: spec.tooling!.cocoapodsPlugin,
+            fastlanePlugin:  spec.tooling!.fastlanePlugin,
           );
 
     return AnnspecModel(platforms: platforms, integrations: integrations, tooling: tooling);
   }
 
-  static AnnspecPlatform _parsePlatform(String key, YamlMap map) {
-    final defaultMap = map['default'] as YamlMap?;
-    final flavorMap = map['flavor'] as YamlMap?;
-    final credentialsMap = defaultMap?['credentials'] as YamlMap?;
-    final sdkMap = defaultMap?['sdk'] as YamlMap?;
+  static AnnspecPlatform _mapAndroid(core.AndroidPlatform platform) {
+    final d = platform.defaults;
+    final c = d.credentials;
+    final defaultBuildTypes = _mapBuildTypes(d.buildTypes);
 
-    final defaultBuildTypes = _parseBuildTypes(defaultMap?['build_types']);
-    final defaultCustom = _parseCustomMap(defaultMap?['custom']);
-    final defaultCustomByBt = _parseCustomPerBuildType(defaultMap?['build_types']);
     return AnnspecPlatform(
-      key: key,
-      baseId: defaultMap?['id'] as String?,
-      baseName: defaultMap?['name'] as String?,
-      defaultVersionName: defaultMap?['version_name']?.toString(),
-      defaultVersionCode: defaultMap?['version_code']?.toString(),
-      defaultGmsAdsId: (defaultMap?['admob'] as Map?)?['gms_ads_id'] as String?,
-      defaultIcon: defaultMap?['icon'] as String?,
-      teamId: (credentialsMap?['signing'] as Map?)?['team_id'] as String?,
-      defaultFirebaseRelease: _parseFirebase(defaultMap?['build_types']?['release']?['firebase']),
-      defaultFirebaseDebug: _parseFirebase(defaultMap?['build_types']?['debug']?['firebase']),
-      defaultServiceAccount: (defaultMap?['firebase'] as YamlMap?)?['service_account'] as String?,
-      defaultTarget: (defaultMap?['firebase'] as YamlMap?)?['target'] as String?,
-      defaultAuthRelease: _parseAuth(defaultMap?['build_types']?['release']?['auth']),
-      defaultAuthDebug: _parseAuth(defaultMap?['build_types']?['debug']?['auth']),
-      flavors: flavorMap != null ? _parseFlavors(flavorMap, defaultBuildTypes,
-          defaultCustom: defaultCustom, defaultCustomByBuildType: defaultCustomByBt) : [],
-      minSdk: sdkMap?['minSdk'] as int?,
-      signingKeyFile: (credentialsMap?['signing'] as Map?)?['key_file'] as String?,
-      googlePlayApiKey: (credentialsMap?['google_play'] as Map?)?['api_key'] as String?,
-      appStoreApiKey: (credentialsMap?['app_store'] as Map?)?['api_key'] as String?,
-      appStoreExportPlist: (credentialsMap?['app_store'] as Map?)?['export_options_plist'] as String?,
+      key: 'android',
+      baseId: d.id,
+      baseName: d.name,
+      defaultVersionName: d.versionName,
+      defaultVersionCode: d.versionCode,
+      defaultGmsAdsId: d.admob?.gmsAdsId,
+      defaultIcon: d.icon,
+      defaultFirebaseRelease: _mapFirebase(d.buildTypes['release']?.firebase),
+      defaultFirebaseDebug: _mapFirebase(d.buildTypes['debug']?.firebase),
+      defaultServiceAccount: d.firebase?.serviceAccount,
+      defaultTarget: d.firebase?.target,
+      defaultAuthRelease: _mapAuth(d.buildTypes['release']?.auth),
+      defaultAuthDebug: _mapAuth(d.buildTypes['debug']?.auth),
+      flavors: platform.flavors.entries.map((e) => _mapAndroidFlavor(
+        e.key, e.value, d, defaultBuildTypes,
+      )).toList(),
+      minSdk: d.sdk?.minSdk,
+      signingKeyFile: c?.signing?.keyFile,
+      googlePlayApiKey: c?.googlePlay?.apiKey,
       defaultBuildTypes: defaultBuildTypes,
     );
   }
 
-  static List<AnnspecFlavor> _parseFlavors(
-      YamlMap map, Map<String, AnnspecBuildTypeConfig> defaultBuildTypes,
-      {Map<String, Map<String, dynamic>> defaultCustom = const {},
-       Map<String, Map<String, Map<String, dynamic>>> defaultCustomByBuildType = const {}}) {
-    return map.entries.map((e) {
-      final key = e.key as String;
-      final fm = e.value as YamlMap;
-      final flavorBuildTypes = _parseBuildTypes(fm['build_types']);
-      final mergedBuildTypes = {...defaultBuildTypes, ...flavorBuildTypes};
-      final flavorCustom = _parseCustomMap(fm['custom']);
-      final flavorCustomByBt = _parseCustomPerBuildType(fm['build_types']);
-      final allBts = {...defaultBuildTypes.keys, ...flavorBuildTypes.keys};
-      final customByBuildType = <String, Map<String, Map<String, dynamic>>>{};
-      for (final bt in allBts) {
-        customByBuildType[bt] = _mergeCustom(
-          _mergeCustom(
-            _mergeCustom(defaultCustom, defaultCustomByBuildType[bt] ?? const {}),
-            flavorCustom,
-          ),
-          flavorCustomByBt[bt] ?? const {},
-        );
-      }
-      if (customByBuildType.isEmpty) {
-        final merged = _mergeCustom(defaultCustom.cast(), flavorCustom);
-        if (merged.isNotEmpty) {
-          customByBuildType['release'] = merged;
-          customByBuildType['debug']   = merged;
-        }
-      }
-      return AnnspecFlavor(
-        key: key,
-        id: fm['id'] as String?,
-        idSuffix: fm['id_suffix'] as String?,
-        name: fm['name'] as String?,
-        mainFile: fm['main_file'] as String?,
-        versionName: fm['version_name']?.toString(),
-        versionCode: fm['version_code']?.toString(),
-        gmsAdsId: (fm['admob'] as Map?)?['gms_ads_id'] as String?,
-        icon: fm['icon'] as String?,
-        firebaseRelease: _parseFirebase(fm['build_types']?['release']?['firebase']),
-        firebaseDebug: _parseFirebase(fm['build_types']?['debug']?['firebase']),
-        flavorServiceAccount: (fm['firebase'] as YamlMap?)?['service_account'] as String?,
-        flavorTarget: (fm['firebase'] as YamlMap?)?['target'] as String?,
-        authRelease: _parseAuth(fm['build_types']?['release']?['auth']),
-        authDebug: _parseAuth(fm['build_types']?['debug']?['auth']),
-        googlePlayPriority: fm['stores']?['google_play']?['priority']?.toString(),
-        samsungAppId: fm['stores']?['samsung_galaxy']?['app_id']?.toString(),
-        amazonAppId: fm['stores']?['amazon']?['app_id']?.toString(),
-        appleId: fm['stores']?['app_store']?['apple_id']?.toString(),
-        buildTypes: mergedBuildTypes,
-        customByBuildType: customByBuildType,
-      );
-    }).toList();
-  }
-
-  static Map<String, AnnspecBuildTypeConfig> _parseBuildTypes(dynamic raw) {
-    if (raw == null) return {};
-    final m = raw as YamlMap;
-    return Map.fromEntries(m.entries.map((e) {
-      final key = e.key as String;
-      final cfg = e.value as YamlMap? ?? YamlMap();
-      final admob = cfg['admob'] as Map?;
-      final ndkRaw = cfg['ndkAbiFilters'];
-      return MapEntry(key, AnnspecBuildTypeConfig(
-        idSuffix:               cfg['id_suffix'] as String?,
-        nameSuffix:             cfg['name_suffix'] as String?,
-        gmsAdsId:               admob?['gms_ads_id'] as String?,
-        minifyEnabled:          cfg['minifyEnabled'] as bool?,
-        shrinkResources:        cfg['shrinkResources'] as bool?,
-        lintCheckReleaseBuilds: cfg['lintCheckReleaseBuilds'] as bool?,
-        ndkVersion:             cfg['ndkVersion'] as String?,
-        ndkDebugSymbolLevel:    cfg['ndkDebugSymbolLevel'] as String?,
-        ndkAbiFilters:          ndkRaw is List ? ndkRaw.map((e) => e.toString()).toList() : const [],
-      ));
-    }));
-  }
-
-  static AnnspecFirebase? _parseFirebase(dynamic map) {
-    if (map == null) return null;
-    final m = map as YamlMap;
-    return AnnspecFirebase(
-      projectId:      m['project_id'] as String?,
-      configFile:     m['config_file'] as String?,
-      serviceAccount: m['service_account'] as String?,
-      target: m['target'] as String?,
-    );
-  }
-
-  static AnnspecAuth? _parseAuth(dynamic map) {
-    if (map == null) return null;
-    final m = map as YamlMap;
-    return AnnspecAuth(
-      clientId: m['clientId'] as String?,
-      reversedClientId: m['reversedClientId'] as String?,
-    );
-  }
-
-  /// Parses a `custom:` YAML map into `Map<groupName, Map<key, value>>`.
-  static Map<String, Map<String, dynamic>> _parseCustomMap(dynamic raw) {
-    if (raw == null) return const {};
-    final outer = raw as YamlMap;
-    return Map.fromEntries(outer.entries.map((e) {
-      final groupName = e.key as String;
-      final groupMap  = e.value as YamlMap;
-      final entries   = groupMap.entries.map((ge) {
-        final v = ge.value;
-        final normalized = v is YamlList ? v.map((i) => i.toString()).toList() : v;
-        return MapEntry(ge.key as String, normalized as dynamic);
-      });
-      return MapEntry(groupName, Map<String, dynamic>.fromEntries(entries));
-    }));
-  }
-
-  /// Parses `custom:` blocks inside each build_type entry.
-  static Map<String, Map<String, Map<String, dynamic>>> _parseCustomPerBuildType(dynamic buildTypesRaw) {
-    if (buildTypesRaw == null) return const {};
-    final bts = buildTypesRaw as YamlMap;
-    final result = <String, Map<String, Map<String, dynamic>>>{};
-    for (final e in bts.entries) {
-      final bt     = e.key as String;
-      final btMap  = e.value as YamlMap?;
-      final custom = btMap?['custom'];
-      if (custom != null) {
-        result[bt] = _parseCustomMap(custom);
-      }
-    }
-    return result;
-  }
-
-  /// Deep-merges two custom configs (key-by-key within each group).
-  static Map<String, Map<String, dynamic>> _mergeCustom(
-    Map<String, Map<String, dynamic>> base,
-    Map<String, Map<String, dynamic>> over,
+  static AnnspecFlavor _mapAndroidFlavor(
+    String key, core.AndroidFlavor flavor, core.AndroidDefault defaults,
+    Map<String, AnnspecBuildTypeConfig> defaultBuildTypes,
   ) {
-    if (over.isEmpty) return base;
-    final result = Map<String, Map<String, dynamic>>.from(base);
-    for (final e in over.entries) {
-      result[e.key] = {...?result[e.key], ...e.value};
+    final flavorBuildTypes = _mapBuildTypes(flavor.buildTypes);
+    return AnnspecFlavor(
+      key: key,
+      id: flavor.id,
+      idSuffix: flavor.idSuffix.isEmpty ? null : flavor.idSuffix,
+      name: flavor.name,
+      mainFile: flavor.mainFile,
+      versionName: flavor.versionName,
+      versionCode: flavor.versionCode,
+      gmsAdsId: flavor.admob?.gmsAdsId,
+      icon: flavor.icon,
+      firebaseRelease: _mapFirebase(flavor.buildTypes['release']?.firebase),
+      firebaseDebug: _mapFirebase(flavor.buildTypes['debug']?.firebase),
+      flavorServiceAccount: flavor.firebase?.serviceAccount,
+      flavorTarget: flavor.firebase?.target,
+      authRelease: _mapAuth(flavor.buildTypes['release']?.auth),
+      authDebug: _mapAuth(flavor.buildTypes['debug']?.auth),
+      googlePlayPriority: flavor.stores?.googlePlay?.priority?.toString(),
+      samsungAppId: flavor.stores?.samsungGalaxy?.appId,
+      amazonAppId: flavor.stores?.amazon?.appId,
+      buildTypes: {...defaultBuildTypes, ...flavorBuildTypes},
+      customByBuildType: _resolveCustomByBuildType(
+        (bt) => core.AnnSpecResolver.resolveAndroidFlavor(flavor, defaults, bt),
+      ),
+    );
+  }
+
+  static AnnspecPlatform _mapIos(core.IosPlatform platform) {
+    final d = platform.defaults;
+    final c = d.credentials;
+    final defaultBuildTypes = _mapBuildTypes(d.buildTypes);
+
+    return AnnspecPlatform(
+      key: 'ios',
+      baseId: d.id,
+      baseName: d.name,
+      defaultVersionName: d.versionName,
+      defaultVersionCode: d.versionCode,
+      defaultGmsAdsId: d.admob?.gmsAdsId,
+      defaultIcon: d.icon,
+      teamId: c?.signing?.teamId,
+      defaultFirebaseRelease: _mapFirebase(d.buildTypes['release']?.firebase),
+      defaultFirebaseDebug: _mapFirebase(d.buildTypes['debug']?.firebase),
+      defaultServiceAccount: d.firebase?.serviceAccount,
+      defaultTarget: d.firebase?.target,
+      defaultAuthRelease: _mapAuth(d.buildTypes['release']?.auth),
+      defaultAuthDebug: _mapAuth(d.buildTypes['debug']?.auth),
+      flavors: platform.flavors.entries.map((e) => _mapIosFlavor(
+        e.key, e.value, d, defaultBuildTypes,
+      )).toList(),
+      appStoreApiKey: c?.appStore?.apiKey,
+      appStoreExportPlist: c?.appStore?.exportOptionsPlist,
+      defaultBuildTypes: defaultBuildTypes,
+    );
+  }
+
+  static AnnspecFlavor _mapIosFlavor(
+    String key, core.IosFlavor flavor, core.IosDefault defaults,
+    Map<String, AnnspecBuildTypeConfig> defaultBuildTypes,
+  ) {
+    final flavorBuildTypes = _mapBuildTypes(flavor.buildTypes);
+    return AnnspecFlavor(
+      key: key,
+      id: flavor.id,
+      idSuffix: flavor.idSuffix.isEmpty ? null : flavor.idSuffix,
+      name: flavor.name,
+      mainFile: flavor.mainFile,
+      versionName: flavor.versionName,
+      versionCode: flavor.versionCode,
+      gmsAdsId: flavor.admob?.gmsAdsId,
+      icon: flavor.icon,
+      firebaseRelease: _mapFirebase(flavor.buildTypes['release']?.firebase),
+      firebaseDebug: _mapFirebase(flavor.buildTypes['debug']?.firebase),
+      flavorServiceAccount: flavor.firebase?.serviceAccount,
+      flavorTarget: flavor.firebase?.target,
+      authRelease: _mapAuth(flavor.buildTypes['release']?.auth),
+      authDebug: _mapAuth(flavor.buildTypes['debug']?.auth),
+      appleId: flavor.stores?.appStore?.appleId,
+      buildTypes: {...defaultBuildTypes, ...flavorBuildTypes},
+      customByBuildType: _resolveCustomByBuildType(
+        (bt) => core.AnnSpecResolver.resolveIosFlavor(flavor, defaults, bt),
+      ),
+    );
+  }
+
+  static AnnspecPlatform _mapWeb(core.WebPlatform platform) {
+    final d = platform.defaults;
+    final defaultBuildTypes = _mapBuildTypes(d.buildTypes);
+
+    return AnnspecPlatform(
+      key: 'web',
+      baseId: d.id,
+      baseName: d.name,
+      defaultVersionName: d.versionName,
+      defaultVersionCode: d.versionCode,
+      defaultIcon: d.icon,
+      defaultAuthRelease: _mapAuth(d.buildTypes['release']?.auth),
+      defaultAuthDebug: _mapAuth(d.buildTypes['debug']?.auth),
+      flavors: platform.flavors.entries.map((e) => _mapWebFlavor(
+        e.key, e.value, d, defaultBuildTypes,
+      )).toList(),
+      defaultBuildTypes: defaultBuildTypes,
+    );
+  }
+
+  static AnnspecFlavor _mapWebFlavor(
+    String key, core.WebFlavor flavor, core.WebDefault defaults,
+    Map<String, AnnspecBuildTypeConfig> defaultBuildTypes,
+  ) {
+    final flavorBuildTypes = _mapBuildTypes(flavor.buildTypes);
+    return AnnspecFlavor(
+      key: key,
+      id: flavor.id,
+      idSuffix: flavor.idSuffix.isEmpty ? null : flavor.idSuffix,
+      name: flavor.name,
+      mainFile: flavor.mainFile,
+      versionName: flavor.versionName,
+      versionCode: flavor.versionCode,
+      icon: flavor.icon,
+      authRelease: _mapAuth(flavor.buildTypes['release']?.auth),
+      authDebug: _mapAuth(flavor.buildTypes['debug']?.auth),
+      buildTypes: {...defaultBuildTypes, ...flavorBuildTypes},
+      customByBuildType: _resolveCustomByBuildType(
+        (bt) => core.AnnSpecResolver.resolveWebFlavor(flavor, defaults, bt),
+      ),
+    );
+  }
+
+  static AnnspecPlatform _mapWindows(core.WindowsPlatform platform) {
+    final d = platform.defaults;
+    final defaultBuildTypes = _mapBuildTypes(d.buildTypes);
+
+    return AnnspecPlatform(
+      key: 'windows',
+      baseId: d.id,
+      baseName: d.name,
+      defaultVersionName: d.versionName,
+      defaultVersionCode: d.versionCode,
+      defaultAuthRelease: _mapAuth(d.buildTypes['release']?.auth),
+      defaultAuthDebug: _mapAuth(d.buildTypes['debug']?.auth),
+      flavors: platform.flavors.entries.map((e) => _mapWindowsFlavor(
+        e.key, e.value, d, defaultBuildTypes,
+      )).toList(),
+      defaultBuildTypes: defaultBuildTypes,
+    );
+  }
+
+  static AnnspecFlavor _mapWindowsFlavor(
+    String key, core.WindowsFlavor flavor, core.WindowsDefault defaults,
+    Map<String, AnnspecBuildTypeConfig> defaultBuildTypes,
+  ) {
+    final flavorBuildTypes = _mapBuildTypes(flavor.buildTypes);
+    return AnnspecFlavor(
+      key: key,
+      id: flavor.id,
+      idSuffix: flavor.idSuffix.isEmpty ? null : flavor.idSuffix,
+      name: flavor.name,
+      mainFile: flavor.mainFile,
+      versionName: flavor.versionName,
+      versionCode: flavor.versionCode,
+      authRelease: _mapAuth(flavor.buildTypes['release']?.auth),
+      authDebug: _mapAuth(flavor.buildTypes['debug']?.auth),
+      buildTypes: {...defaultBuildTypes, ...flavorBuildTypes},
+      customByBuildType: _resolveCustomByBuildType(
+        (bt) => core.AnnSpecResolver.resolveWindowsFlavor(flavor, defaults, bt),
+      ),
+    );
+  }
+
+  // ── Shared mapping helpers ────────────────────────────────────────────────
+
+  static Map<String, AnnspecBuildTypeConfig> _mapBuildTypes(Map<String, core.BuildTypeConfig> raw) {
+    return raw.map((key, cfg) => MapEntry(key, AnnspecBuildTypeConfig(
+      idSuffix:               cfg.idSuffix.isEmpty ? null : cfg.idSuffix,
+      nameSuffix:             cfg.nameSuffix.isEmpty ? null : cfg.nameSuffix,
+      gmsAdsId:               cfg.admob?.gmsAdsId,
+      minifyEnabled:          cfg.minifyEnabled,
+      shrinkResources:        cfg.shrinkResources,
+      lintCheckReleaseBuilds: cfg.lintCheckReleaseBuilds,
+      ndkVersion:             cfg.ndkVersion,
+      ndkDebugSymbolLevel:    cfg.ndkDebugSymbolLevel,
+      ndkAbiFilters:          cfg.ndkAbiFilters,
+    )));
+  }
+
+  static AnnspecFirebase? _mapFirebase(core.FirebaseConfig? fb) {
+    if (fb == null) return null;
+    return AnnspecFirebase(
+      projectId: fb.projectId,
+      configFile: fb.configFile,
+      serviceAccount: fb.serviceAccount,
+      target: fb.target,
+    );
+  }
+
+  static AnnspecAuth? _mapAuth(core.AuthConfig? auth) {
+    if (auth == null) return null;
+    return AnnspecAuth(clientId: auth.clientId, reversedClientId: auth.reversedClientId);
+  }
+
+  /// Resolved (fully cascaded) custom config per build type — matches the
+  /// core resolver's 4-level merge (default → default.bt → flavor → flavor.bt),
+  /// including profile now that the core resolver supports it.
+  static Map<String, Map<String, Map<String, dynamic>>> _resolveCustomByBuildType(
+    core.ResolvedBuildOutput Function(String buildType) resolve,
+  ) {
+    final result = <String, Map<String, Map<String, dynamic>>>{};
+    for (final bt in core.AnnSpecResolver.standardBuildTypes) {
+      final resolved = resolve(bt);
+      if (resolved.effectiveCustom.isNotEmpty) {
+        result[bt] = resolved.effectiveCustom;
+      }
     }
     return result;
   }

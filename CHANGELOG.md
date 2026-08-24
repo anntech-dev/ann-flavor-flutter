@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.1
+
+### Changed
+- `AnnspecReader` now parses `annspec.yaml` via the shared `ann_flavor_core` package instead of ad-hoc YAML traversal ([ADR-008](../../docs/02-decisions/008-core-delegation-mandate.md)).
+
+### Fixed
+- Fixed a cascade precedence bug in `service_account`/`target` resolution: a flavor's own top-level Firebase override could be silently outranked by the *default* config's per-build-type override. The 4-level cascade (flavor build-type → flavor → default build-type → default) is now applied correctly.
+- `custom:` config now resolves correctly for `profile` builds, not just `debug`/`release`.
+
 ## 1.0.0
 
 ### Added

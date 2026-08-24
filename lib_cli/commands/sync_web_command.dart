@@ -86,7 +86,7 @@ class SyncWebCommand extends Command<void> {
     final name = flavor.name ?? platform.baseName ?? flavorKey;
     final version = flavor.versionName ?? platform.defaultVersionName ?? '';
     final buildNumber =
-        flavor.versionCode ?? platform.defaultVersionCode ?? '';
+        (flavor.versionCode ?? platform.defaultVersionCode)?.toString() ?? '';
     final base = platform.baseId ?? '';
     final packageName = flavor.id ??
         (flavor.idSuffix != null ? '$base${flavor.idSuffix}' : base);

@@ -87,7 +87,7 @@ class IosGenerator {
         (flavor.buildTypes[buildType]?.idSuffix ?? '');
     final effectiveName    = flavor.name ?? platform.baseName ?? '';
     final effectiveVersion = flavor.versionName ?? platform.defaultVersionName ?? '';
-    final effectiveBuild   = flavor.versionCode ?? platform.defaultVersionCode ?? '';
+    final effectiveBuild   = (flavor.versionCode ?? platform.defaultVersionCode)?.toString() ?? '';
     final effectiveGmsAdsId = flavor.gmsAdsId ?? platform.defaultGmsAdsId;
 
     // Variables this xcconfig should declare.

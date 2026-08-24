@@ -163,7 +163,7 @@ class SummaryCommand extends Command<void> {
 
   // ── Field renderers ────────────────────────────────────────────────────────
 
-  String _versionStr(String? name, String? code) =>
+  String _versionStr(String? name, int? code) =>
       code != null ? '$name ($code)' : name ?? '';
 
   void _printFirebase(AnnspecFirebase? fb) {

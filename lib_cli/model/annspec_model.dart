@@ -43,7 +43,7 @@ class AnnspecFlavor {
   final String? name;
   final String? mainFile;
   final String? versionName;
-  final String? versionCode;
+  final int? versionCode;
   final String? gmsAdsId; // resolved: buildType.admob.gms_ads_id ?? flavor.admob.gms_ads_id ?? default.admob.gms_ads_id
   final String? icon; // resolved: flavor.icon ?? default.icon
   final AnnspecFirebase? firebaseRelease;
@@ -106,7 +106,7 @@ class AnnspecPlatform {
   final String? baseId;
   final String? baseName;
   final String? defaultVersionName;
-  final String? defaultVersionCode;
+  final int? defaultVersionCode;
   final String? defaultGmsAdsId;
   final String? defaultIcon;
   final String? teamId;
@@ -122,8 +122,6 @@ class AnnspecPlatform {
   // android-specific
   final int? minSdk;
   final String? signingKeyFile;
-  final String? gradlePluginId;
-  final String? gradlePluginVersion;
   // credentials
   final String? googlePlayApiKey;
   final String? appStoreApiKey;
@@ -150,8 +148,6 @@ class AnnspecPlatform {
     this.flavors = const [],
     this.minSdk,
     this.signingKeyFile,
-    this.gradlePluginId,
-    this.gradlePluginVersion,
     this.googlePlayApiKey,
     this.appStoreApiKey,
     this.appStoreExportPlist,
@@ -180,17 +176,12 @@ class AnnspecModel {
     AnnspecFlavor? flavor,
     String buildType,
   ) {
-    final fb = buildType == 'release'
-        ? (flavor?.firebaseRelease ?? platform.defaultFirebaseRelease)
-        : (flavor?.firebaseDebug   ?? platform.defaultFirebaseDebug);
+    final flavorBt = buildType == 'release' ? flavor?.firebaseRelease : flavor?.firebaseDebug;
+    final defaultBt = buildType == 'release' ? platform.defaultFirebaseRelease : platform.defaultFirebaseDebug;
 
-    final defaultFb = buildType == 'release'
-        ? platform.defaultFirebaseRelease
-        : platform.defaultFirebaseDebug;
-
-    return fb?.serviceAccount              // level 1 or 3 (build-type specific)
+    return flavorBt?.serviceAccount        // level 1
         ?? flavor?.flavorServiceAccount    // level 2
-        ?? defaultFb?.serviceAccount       // level 3 when flavor has no bt firebase
+        ?? defaultBt?.serviceAccount       // level 3
         ?? platform.defaultServiceAccount; // level 4
   }
 
@@ -199,15 +190,11 @@ class AnnspecModel {
     AnnspecFlavor? flavor,
     String buildType,
   ) {
-    final fb = buildType == 'release'
-        ? (flavor?.firebaseRelease ?? platform.defaultFirebaseRelease)
-        : (flavor?.firebaseDebug   ?? platform.defaultFirebaseDebug);
-    final defaultFb = buildType == 'release'
-        ? platform.defaultFirebaseRelease
-        : platform.defaultFirebaseDebug;
-    return fb?.target              // level 1 (flavor bt) or level 3 (default bt)
+    final flavorBt = buildType == 'release' ? flavor?.firebaseRelease : flavor?.firebaseDebug;
+    final defaultBt = buildType == 'release' ? platform.defaultFirebaseRelease : platform.defaultFirebaseDebug;
+    return flavorBt?.target        // level 1
         ?? flavor?.flavorTarget    // level 2
-        ?? defaultFb?.target       // level 3 fallback
+        ?? defaultBt?.target       // level 3
         ?? platform.defaultTarget  // level 4
         ?? 'Runner';               // hardcoded default when not specified anywhere
   }

@@ -35,7 +35,7 @@ class WebTemplateRenderer {
     final shortName = name.split(' ').first;
     final id = _resolveId(platform, flavor);
     final version = flavor?.versionName ?? platform?.defaultVersionName ?? '';
-    final versionCode = flavor?.versionCode ?? platform?.defaultVersionCode ?? '';
+    final versionCode = (flavor?.versionCode ?? platform?.defaultVersionCode)?.toString() ?? '';
 
     // theme_color and background_color come from custom.web group
     final customWeb = flavor?.customByBuildType['release']?['web'] ??
