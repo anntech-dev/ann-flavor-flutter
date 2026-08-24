@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../model/annspec_model.dart';
 
 /// Reads annspec.yaml via the shared core (ADR-008) — parsing and cascade
