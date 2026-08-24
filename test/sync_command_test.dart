@@ -494,7 +494,10 @@ ${toolingBlock}app:
       final gemfile = File('${tempDir.path}/Gemfile');
       expect(gemfile.existsSync(), isTrue);
       final content = gemfile.readAsStringSync();
-      expect(content, contains("gem 'fastlane-plugin-ann_fastlane_flavor', '~> 0.4.4'"),
+      // Gem name must be the real published RubyGems package name
+      // (ann-flavor-flutter), not fastlane-plugin-ann_fastlane_flavor — that
+      // name was never published and every bundle install failed against it.
+      expect(content, contains("gem 'ann-flavor-flutter', '~> 0.4.4'"),
           reason: 'versioned Fastlane Gemfile entry should use pessimistic constraint');
     });
 
@@ -504,8 +507,25 @@ ${toolingBlock}app:
       final gemfile = File('${tempDir.path}/Gemfile');
       expect(gemfile.existsSync(), isTrue);
       final content = gemfile.readAsStringSync();
-      expect(content, contains("gem 'fastlane-plugin-ann_fastlane_flavor'"),
+      expect(content, contains("gem 'ann-flavor-flutter'"),
           reason: 'Gemfile should still include fastlane plugin without version');
+    });
+
+    test('legacy fastlane-plugin-ann_fastlane_flavor entry is migrated to ann-flavor-flutter',
+        () async {
+      // Simulates a Gemfile written by a pre-fix Sync Spec run.
+      writeFastlaneSpec(tempDir, fastlanePlugin: '^0.4.4');
+      File('${tempDir.path}/Gemfile').writeAsStringSync(
+        "source 'https://rubygems.org'\n"
+        "gem 'fastlane'\n"
+        "gem 'fastlane-plugin-ann_fastlane_flavor', '~> 0.4.1'\n",
+      );
+      await _runSync(tempDir, []);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      expect(content, contains("gem 'ann-flavor-flutter', '~> 0.4.4'"),
+          reason: 'the stale legacy gem line should be rewritten in place');
+      expect(content, isNot(contains('fastlane-plugin-ann_fastlane_flavor')),
+          reason: 'the legacy nonexistent gem name should not remain in the Gemfile');
     });
   });
 }

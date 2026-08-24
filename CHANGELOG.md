@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.2
+
+### Fixed
+- `upgrade` command: `gradle_plugin` and `fastlane_plugin` registry resolution used
+  wrong identifiers since this feature was first implemented — Maven Central's
+  artifact ID was `ann-flavor-gradle` instead of the actual published `flavorize`,
+  and RubyGems' gem name was `fastlane-plugin-ann_fastlane_flavor` instead of the
+  actual published `ann-flavor-flutter`. Both silently failed to resolve ("could not
+  determine latest version" / registry 404); `cocoapods_plugin` worked only because
+  its guessed name happened to match the real one. Maven resolution also switched
+  from the unreliable `search.maven.org` search index to the authoritative
+  `maven-metadata.xml`. ([#55](https://github.com/anntech-dev/ann-flavor-tooling/issues/55))
+- `sync` (and therefore `upgrade`, which always runs `sync`) wrote the same wrong,
+  uninstallable `fastlane-plugin-ann_fastlane_flavor` gem name into every generated
+  `Gemfile`. Now writes the correct `ann-flavor-flutter` gem name and migrates any
+  already-written legacy line in place on the next run, instead of leaving it broken
+  or duplicating the entry.
+
 ## 1.0.1
 
 ### Changed

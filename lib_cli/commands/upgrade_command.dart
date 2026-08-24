@@ -118,11 +118,11 @@ class UpgradeCommand extends Command<void> {
   String _artifactName(String field) {
     switch (field) {
       case 'gradle_plugin':
-        return 'ann-flavor-gradle'; // groupId:artifactId = dev.anntech.flavorize:ann-flavor-gradle
+        return 'flavorize'; // groupId:artifactId = dev.anntech.flavorize:flavorize
       case 'cocoapods_plugin':
         return 'ann-flavor-cocoapods';
       case 'fastlane_plugin':
-        return 'fastlane-plugin-ann_fastlane_flavor';
+        return 'ann-flavor-flutter'; // published gem name (fastlane-plugin-* is only the local directory convention)
       default:
         return field;
     }
@@ -143,13 +143,15 @@ class UpgradeCommand extends Command<void> {
   }
 
   Future<String?> _fetchMavenLatest(String artifactId) async {
+    // maven-metadata.xml is the authoritative "latest version" source for a
+    // Maven Central artifact — search.maven.org's Solr search index can lag or
+    // miss artifacts entirely and is not meant for exact-artifact lookups.
     final body = await _httpGet(
-      'https://search.maven.org/solrsearch/select'
-      '?q=g:dev.anntech.flavorize+a:$artifactId&rows=1&wt=json',
+      'https://repo1.maven.org/maven2/dev/anntech/flavorize/$artifactId/maven-metadata.xml',
     );
-    final data = jsonDecode(body) as Map<String, dynamic>;
-    final docs = (data['response']?['docs'] as List?)?.cast<Map<String, dynamic>>();
-    return docs?.isNotEmpty == true ? docs!.first['latestVersion'] as String? : null;
+    final match = RegExp(r'<latest>([^<]+)</latest>').firstMatch(body) ??
+        RegExp(r'<release>([^<]+)</release>').firstMatch(body);
+    return match?.group(1);
   }
 
   Future<String?> _fetchRubyGemsLatest(String gemName) async {

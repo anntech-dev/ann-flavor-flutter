@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^1.0.1
+  ann_flutter_flavor: ^1.0.2
 ```
 
 ---

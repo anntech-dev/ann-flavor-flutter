@@ -253,7 +253,11 @@ class SyncCommand extends Command<void> {
     required bool jsonMode,
     String? versionConstraint,
   }) {
-    const gemName = 'fastlane-plugin-ann_fastlane_flavor';
+    // Published gem name (RubyGems: ann-flavor-flutter) — "fastlane-plugin-*" is
+    // only the local plugin-directory naming convention, never a real gem name.
+    const gemName = 'ann-flavor-flutter';
+    // Older Sync Spec runs wrote this nonexistent gem name — migrate it in place.
+    const legacyGemName = 'fastlane-plugin-ann_fastlane_flavor';
     final entry = versionConstraint != null
         ? "gem '$gemName', '~> $versionConstraint'"
         : "gem '$gemName'";
@@ -263,7 +267,16 @@ class SyncCommand extends Command<void> {
     var existing = file.readAsStringSync();
     var changed = false;
 
-    if (!_gemPresent(existing, gemName)) {
+    if (_gemPresent(existing, legacyGemName)) {
+      final updated = existing.replaceFirstMapped(
+        RegExp(r"gem\s+'" + RegExp.escape(legacyGemName) + r"'(?:\s*,\s*'[^']*')?"),
+        (_) => entry,
+      );
+      if (updated != existing) {
+        existing = updated;
+        changed = true;
+      }
+    } else if (!_gemPresent(existing, gemName)) {
       existing = existing.trimRight() + '\n$entry\n';
       changed = true;
     } else if (versionConstraint != null) {
