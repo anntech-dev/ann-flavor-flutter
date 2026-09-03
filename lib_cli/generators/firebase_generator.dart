@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 
 /// Runs `flutterfire configure` for every flavor × platform × build type
 /// that has a project_id in the annspec.yaml, or generates a shell script

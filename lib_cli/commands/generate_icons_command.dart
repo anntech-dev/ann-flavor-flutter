@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
 import '../icon/android_icon_generator.dart';
 import '../icon/ios_icon_generator.dart';

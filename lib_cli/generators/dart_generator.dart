@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 
 /// Generates lib/generated/ann_flavor.g.dart inside the Flutter project.
 class DartGenerator {

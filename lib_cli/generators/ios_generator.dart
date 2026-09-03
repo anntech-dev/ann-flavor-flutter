@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../plist/plist_codec.dart';
 
 const _annHeader = '# Added by ann_flutter_flavor — multi-flavor iOS build configuration';

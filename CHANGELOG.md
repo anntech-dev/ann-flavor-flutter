@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.3
+
+**Fixed:** 1.7.2 was published broken — every command failed immediately with a dependency resolution error. Fully fixed, safe to upgrade.
+
 ## 1.7.2
 
 **Changed:** Version-only release, published alongside the other plugins for parity. No functional changes.

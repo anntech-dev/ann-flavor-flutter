@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 
 /// Renders all *.tmpl.* files in web_flavors/<flavorKey>/ to *.*
 /// by substituting {{variable}} placeholders from annspec.yaml.
