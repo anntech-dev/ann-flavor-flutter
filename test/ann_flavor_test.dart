@@ -5,24 +5,26 @@ import 'package:test/test.dart';
 class _TestFlavor extends AnnFlavorConfig {
   @override
   final String key = 'test_flavor';
-  @override
-  final String name = 'Test App';
-  @override
-  final String? androidId = 'com.example.test';
-  @override
-  final String? iosId = 'com.example.test';
 
   @override
-  AnnAuthConfig? authRelease(AnnPlatform platform) =>
-      const AnnAuthConfig(clientId: 'client-id-release');
+  bool existsOn([AnnPlatform? platform]) => true;
 
   @override
-  AnnAuthConfig? authDebug(AnnPlatform platform) =>
-      const AnnAuthConfig(clientId: 'client-id-debug');
+  String? nameFor([AnnPlatform? platform]) => 'Test App';
 
   @override
-  AnnCustomGroup? custom(String group) => switch (group) {
-        'revenuecat' => switch (AnnFlavor.buildType) {
+  String? idFor([AnnPlatform? platform]) => 'com.example.test';
+
+  @override
+  AnnAuthConfig? authFor([AnnPlatform? platform, String? buildType]) =>
+      (buildType ?? AnnFlavor.buildType) == 'debug'
+          ? const AnnAuthConfig(clientId: 'client-id-debug')
+          : const AnnAuthConfig(clientId: 'client-id-release');
+
+  @override
+  AnnCustomGroup? customFor(String group, [AnnPlatform? platform, String? buildType]) =>
+      switch (group) {
+        'revenuecat' => switch (buildType ?? AnnFlavor.buildType) {
             'debug' => AnnCustomGroup({
                 'api_key': 'rc_debug',
                 'entitlement_ids': ['standard']
@@ -86,36 +88,38 @@ void main() {
     late _TestFlavor flavor;
     setUp(() => flavor = _TestFlavor());
 
-    test('androidId and iosId are set', () {
-      expect(flavor.androidId, 'com.example.test');
-      expect(flavor.iosId, 'com.example.test');
+    test('idFor(platform) resolves for an explicit platform', () {
+      expect(flavor.idFor(AnnPlatform.android), 'com.example.test');
+      expect(flavor.idFor(AnnPlatform.ios), 'com.example.test');
     });
 
-    test('authRelease returns release clientId', () {
-      final auth = flavor.authRelease(AnnPlatform.android);
+    test('authFor(platform, buildType) resolves release clientId', () {
+      final auth = flavor.authFor(AnnPlatform.android, 'release');
       expect(auth?.clientId, 'client-id-release');
     });
 
-    test('authDebug returns debug clientId', () {
-      final auth = flavor.authDebug(AnnPlatform.android);
+    test('authFor(platform, buildType) resolves debug clientId', () {
+      final auth = flavor.authFor(AnnPlatform.android, 'debug');
       expect(auth?.clientId, 'client-id-debug');
     });
 
-    test('auth() dispatches to authRelease when buildType is release', () {
-      AnnFlavor.buildTypeOverride = 'release';
-      expect(flavor.auth(AnnPlatform.android)?.clientId, 'client-id-release');
-      AnnFlavor.buildTypeOverride = null;
-    });
-
-    test('auth() dispatches to authDebug when buildType is debug', () {
-      AnnFlavor.buildTypeOverride = 'debug';
-      expect(flavor.auth(AnnPlatform.android)?.clientId, 'client-id-debug');
-      AnnFlavor.buildTypeOverride = null;
-    });
-
-    test('custom returns null for unknown group', () {
+    test('authFor() with no args resolves the active platform + build type (release)', () {
       AnnFlavor.init(config: flavor, platform: AnnPlatform.android);
-      expect(flavor.custom('unknown_group'), isNull);
+      AnnFlavor.buildTypeOverride = 'release';
+      expect(flavor.authFor()?.clientId, 'client-id-release');
+      AnnFlavor.buildTypeOverride = null;
+    });
+
+    test('authFor() with no args resolves the active platform + build type (debug)', () {
+      AnnFlavor.init(config: flavor, platform: AnnPlatform.android);
+      AnnFlavor.buildTypeOverride = 'debug';
+      expect(flavor.authFor()?.clientId, 'client-id-debug');
+      AnnFlavor.buildTypeOverride = null;
+    });
+
+    test('customFor(group) with omitted platform/buildType resolves the active ones', () {
+      AnnFlavor.init(config: flavor, platform: AnnPlatform.android);
+      expect(flavor.customFor('unknown_group'), isNull);
     });
   });
 
@@ -123,7 +127,7 @@ void main() {
     test('returns release values when buildType is release', () {
       AnnFlavor.buildTypeOverride = 'release';
       AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
-      final group = AnnFlavor.current.custom('revenuecat');
+      final group = AnnFlavor.current.customFor('revenuecat');
       expect(group, isNotNull);
       expect(group!.string('api_key'), 'rc_release');
       expect(group.strings('entitlement_ids'), ['standard', 'premium']);
@@ -132,7 +136,7 @@ void main() {
     test('returns debug values when buildType is debug', () {
       AnnFlavor.buildTypeOverride = 'debug';
       AnnFlavor.init(config: _TestFlavor(), platform: AnnPlatform.android);
-      final group = AnnFlavor.current.custom('revenuecat');
+      final group = AnnFlavor.current.customFor('revenuecat');
       expect(group, isNotNull);
       expect(group!.string('api_key'), 'rc_debug');
       expect(group.strings('entitlement_ids'), ['standard']);

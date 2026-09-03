@@ -16,8 +16,12 @@ class AnnSpecValidator {
     if (d.id == null || d.id!.isEmpty) {
       errors.add('android.default.id is required');
     }
+    final flavorsMissingVersionCode =
+        android.flavors.values.any((f) => f.versionCode == null);
     if (d.versionCode == null) {
-      errors.add('android.default.version_code is required');
+      if (flavorsMissingVersionCode) {
+        errors.add('android.default.version_code is required');
+      }
     } else if (d.versionCode! <= 0) {
       errors.add('android.default.version_code must be a positive integer');
     }
@@ -38,8 +42,12 @@ class AnnSpecValidator {
     if (d.id == null || d.id!.isEmpty) {
       errors.add('ios.default.id is required');
     }
+    final flavorsMissingVersionCode =
+        ios.flavors.values.any((f) => f.versionCode == null);
     if (d.versionCode == null) {
-      errors.add('ios.default.version_code is required');
+      if (flavorsMissingVersionCode) {
+        errors.add('ios.default.version_code is required');
+      }
     } else if (d.versionCode! <= 0) {
       errors.add('ios.default.version_code must be a positive integer');
     }
@@ -60,6 +68,20 @@ class AnnSpecValidator {
     if (d.id == null || d.id!.isEmpty) {
       errors.add('web.default.id is required');
     }
+    final flavorsMissingVersionCode =
+        web.flavors.values.any((f) => f.versionCode == null);
+    if (d.versionCode == null) {
+      if (flavorsMissingVersionCode) {
+        errors.add('web.default.version_code is required');
+      }
+    } else if (d.versionCode! <= 0) {
+      errors.add('web.default.version_code must be a positive integer');
+    }
+    web.flavors.forEach((name, flavor) {
+      if (flavor.versionCode == null && d.versionCode == null) {
+        errors.add('web.flavor.$name: version_code is required');
+      }
+    });
   }
 
   static void _validateWindows(WindowsPlatform? windows, List<String> errors) {
@@ -68,5 +90,19 @@ class AnnSpecValidator {
     if (d.id == null || d.id!.isEmpty) {
       errors.add('windows.default.id is required');
     }
+    final flavorsMissingVersionCode =
+        windows.flavors.values.any((f) => f.versionCode == null);
+    if (d.versionCode == null) {
+      if (flavorsMissingVersionCode) {
+        errors.add('windows.default.version_code is required');
+      }
+    } else if (d.versionCode! <= 0) {
+      errors.add('windows.default.version_code must be a positive integer');
+    }
+    windows.flavors.forEach((name, flavor) {
+      if (flavor.versionCode == null && d.versionCode == null) {
+        errors.add('windows.flavor.$name: version_code is required');
+      }
+    });
   }
 }

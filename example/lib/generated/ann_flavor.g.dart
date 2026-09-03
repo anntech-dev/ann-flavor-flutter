@@ -13,28 +13,28 @@ class FreeFlavor extends AnnFlavorConfig {
   String get key => 'free';
 
   @override
-  String get name => 'Flavor Example (Free)';
+  bool existsOn([AnnPlatform? platform]) => switch (platform ?? AnnFlavor.platform) {
+        AnnPlatform.android || AnnPlatform.ios => true,
+        _ => false,
+      };
 
   @override
-  String? get androidId => 'com.anntech.example.ann_flavor_example.free';
+  String? nameFor([AnnPlatform? platform]) => 'Flavor Example (Free)';
 
   @override
-  String? get iosId => 'com.anntech.example.annFlavorExample.free';
+  String? idFor([AnnPlatform? platform]) => switch (platform ?? AnnFlavor.platform) {
+        AnnPlatform.android => 'com.anntech.example.ann_flavor_example.free',
+        AnnPlatform.ios => 'com.anntech.example.annFlavorExample.free',
+        _ => null,
+      };
 
   @override
-  AnnAuthConfig? auth(AnnPlatform platform) => null;
+  AnnAuthConfig? authFor([AnnPlatform? platform, String? buildType]) => null;
 
   @override
-  AnnAuthConfig? authDebug(AnnPlatform platform) => null;
-
-  @override
-  AnnAuthConfig? authRelease(AnnPlatform platform) => null;
-
-  @override
-  AnnCustomGroup? custom(String group) {
-    final bt = AnnFlavor.buildType;
+  AnnCustomGroup? customFor(String group, [AnnPlatform? platform, String? buildType]) {
     return switch (group) {
-      'revenuecat' => switch (bt) {
+      'revenuecat' => switch (buildType ?? AnnFlavor.buildType) {
           'debug' => const AnnCustomGroup({
               'api_key': 'goog_free_debug_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
               'entitlement_ids': ['standard'],
@@ -58,28 +58,28 @@ class ProFlavor extends AnnFlavorConfig {
   String get key => 'pro';
 
   @override
-  String get name => 'Flavor Example (Pro)';
+  bool existsOn([AnnPlatform? platform]) => switch (platform ?? AnnFlavor.platform) {
+        AnnPlatform.android || AnnPlatform.ios => true,
+        _ => false,
+      };
 
   @override
-  String? get androidId => 'com.anntech.example.ann_flavor_example.pro';
+  String? nameFor([AnnPlatform? platform]) => 'Flavor Example (Pro)';
 
   @override
-  String? get iosId => 'com.anntech.example.annFlavorExample.pro';
+  String? idFor([AnnPlatform? platform]) => switch (platform ?? AnnFlavor.platform) {
+        AnnPlatform.android => 'com.anntech.example.ann_flavor_example.pro',
+        AnnPlatform.ios => 'com.anntech.example.annFlavorExample.pro',
+        _ => null,
+      };
 
   @override
-  AnnAuthConfig? auth(AnnPlatform platform) => null;
+  AnnAuthConfig? authFor([AnnPlatform? platform, String? buildType]) => null;
 
   @override
-  AnnAuthConfig? authDebug(AnnPlatform platform) => null;
-
-  @override
-  AnnAuthConfig? authRelease(AnnPlatform platform) => null;
-
-  @override
-  AnnCustomGroup? custom(String group) {
-    final bt = AnnFlavor.buildType;
+  AnnCustomGroup? customFor(String group, [AnnPlatform? platform, String? buildType]) {
     return switch (group) {
-      'revenuecat' => switch (bt) {
+      'revenuecat' => switch (buildType ?? AnnFlavor.buildType) {
           'debug' => const AnnCustomGroup({
               'api_key': 'goog_pro_debug_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
               'entitlement_ids': ['standard', 'premium'],

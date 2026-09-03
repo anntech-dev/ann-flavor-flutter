@@ -166,7 +166,14 @@ app:
           reason: 'should resolve a real newer version from maven-metadata.xml');
     });
 
-    test('fastlane_plugin resolves against the real ann-flavor-flutter RubyGems package',
+    // Plan 040: renamed from "...ann-flavor-flutter RubyGems package" —
+    // the gem itself was renamed ann-flavor-flutter → ann-flavor-fastlane.
+    // This test hits the live registry, so it is EXPECTED TO FAIL until
+    // ann-flavor-fastlane 1.0.0 is actually published (plan 040 STEP-11/12)
+    // — resolving against a not-yet-published package name 404s, same as
+    // the original test would have failed before the gem it targeted first
+    // existed.
+    test('fastlane_plugin resolves against the real ann-flavor-fastlane RubyGems package',
         () async {
       _writePubspec(tempDir);
       _writeSpecWithTooling(tempDir, fastlanePlugin: '^0.0.1');
@@ -175,7 +182,8 @@ app:
           reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
       expect(result.stdout, contains('fastlane_plugin: 0.0.1 →'),
           reason: 'should resolve a real newer version from rubygems.org, '
-              'not 404 on the nonexistent fastlane-plugin-ann_fastlane_flavor gem');
+              'not 404 on the nonexistent fastlane-plugin-ann_fastlane_flavor gem '
+              '(or, pre-publish, the not-yet-existing ann-flavor-fastlane 1.0.0)');
     });
   });
 }

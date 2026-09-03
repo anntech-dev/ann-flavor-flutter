@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:test/test.dart';
 
@@ -352,6 +353,81 @@ void main() {
       final cpDests = cpMatches.map((m) => m.group(1)).toSet();
       expect(cpDests.length, equals(cpMatches.length),
           reason: 'Each iOS configure call must cp to a unique stable file');
+    });
+  });
+
+  group('firebase_generator — firebase.json buildConfigurations realignment', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('fbjson_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    void writeFirebaseJson(Directory dir, Map<String, dynamic> iosBuildConfigs) {
+      final content = {
+        'flutter': {
+          'platforms': {
+            'ios': {
+              'buildConfigurations': iosBuildConfigs,
+              'default': {'fileOutput': 'ios/Runner/GoogleService-Info.plist'},
+            },
+          },
+        },
+        'hosting': {'public': 'build/web'},
+      };
+      File('${dir.path}/firebase.json').writeAsStringSync(jsonEncode(content));
+    }
+
+    test('corrects a stale fileOutput for an existing buildConfigurations key', () async {
+      _writeProjectIdSpec(tempDir); // release/app, project_id my-firebase-prod
+      writeFirebaseJson(tempDir, {
+        'Release-app': {
+          'projectId': 'my-firebase-prod',
+          'fileOutput': 'Users/someone/Elsewhere/GoogleService-Info.plist',
+        },
+      });
+
+      await _runSync(tempDir, firebaseMode: 'script');
+
+      final result = jsonDecode(File('${tempDir.path}/firebase.json').readAsStringSync())
+          as Map<String, dynamic>;
+      final entry = result['flutter']['platforms']['ios']['buildConfigurations']['Release-app']
+          as Map<String, dynamic>;
+      expect(entry['fileOutput'], 'lib/generated/firebase/GoogleService-Info-app-release.plist');
+      // Unrelated fields on the same entry must survive untouched.
+      expect(entry['projectId'], 'my-firebase-prod');
+    });
+
+    test('does not invent a new buildConfigurations key that was never present', () async {
+      _writeProjectIdSpec(tempDir);
+      writeFirebaseJson(tempDir, {}); // no Release-app key at all
+
+      await _runSync(tempDir, firebaseMode: 'script');
+
+      final result = jsonDecode(File('${tempDir.path}/firebase.json').readAsStringSync())
+          as Map<String, dynamic>;
+      final buildConfigs = result['flutter']['platforms']['ios']['buildConfigurations']
+          as Map<String, dynamic>;
+      expect(buildConfigs.containsKey('Release-app'), isFalse);
+    });
+
+    test('leaves unrelated top-level keys (e.g. hosting) untouched', () async {
+      _writeProjectIdSpec(tempDir);
+      writeFirebaseJson(tempDir, {
+        'Release-app': {'fileOutput': 'stale/path.plist'},
+      });
+
+      await _runSync(tempDir, firebaseMode: 'script');
+
+      final result = jsonDecode(File('${tempDir.path}/firebase.json').readAsStringSync())
+          as Map<String, dynamic>;
+      expect(result['hosting']['public'], 'build/web');
+    });
+
+    test('does not error and leaves nothing behind when firebase.json is absent', () async {
+      _writeProjectIdSpec(tempDir); // no firebase.json written at all
+      final result = await _runSync(tempDir, firebaseMode: 'script');
+      expect(result.exitCode, 0, reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      expect(File('${tempDir.path}/firebase.json').existsSync(), isFalse);
     });
   });
 }

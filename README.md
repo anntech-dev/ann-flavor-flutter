@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^1.0.2
+  ann_flutter_flavor: ^1.7.2
 ```
 
 ---
@@ -46,15 +46,15 @@ app:
     firebase: true   # enable flutterfire configure during sync
 
   android:
-    sdk:
-      minSdk: 23
-      compileSdk: 35
-      targetSdk: 35
     default:
       id: com.example.myapp
       name: "My App"
       version_name: 1.0.0
       version_code: 10000
+      sdk:
+        minSdk: 23
+        compileSdk: 35
+        targetSdk: 35
       admob:                                      # optional — enables AdMob for all flavors
         gms_ads_id: "ca-app-pub-XXXX~XXXXXXXXXX"
       build_types:
@@ -113,6 +113,9 @@ app:
       version_name: 1.0.0
       version_code: 10000
       team_id: "YOURTEAMID"
+      sdk:                                        # optional
+        ios: "15.0"
+        swift_version: "5.0"
       admob:                                      # optional — shared AdMob ID for iOS
         gms_ads_id: "ca-app-pub-XXXX~XXXXXXXXXX"
     flavor:

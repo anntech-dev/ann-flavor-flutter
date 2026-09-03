@@ -10,7 +10,7 @@ class FlavorApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: AnnFlavor.current.name,
+      title: AnnFlavor.current.nameFor() ?? AnnFlavor.current.key,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
@@ -26,11 +26,11 @@ class FlavorInfoPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flavor = AnnFlavor.current;
-    final rc = flavor.custom('revenuecat');
+    final rc = flavor.customFor('revenuecat');
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(flavor.name),
+        title: Text(flavor.nameFor() ?? flavor.key),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: ListView(
@@ -42,8 +42,8 @@ class FlavorInfoPage extends StatelessWidget {
           _row('Platform', AnnFlavor.platform.name),
           const SizedBox(height: 16),
           _section('App IDs'),
-          _row('Android ID', flavor.androidId ?? '—'),
-          _row('iOS ID', flavor.iosId ?? '—'),
+          _row('Android ID', flavor.idFor(AnnPlatform.android) ?? '—'),
+          _row('iOS ID', flavor.idFor(AnnPlatform.ios) ?? '—'),
           const SizedBox(height: 16),
           _section('RevenueCat (custom group)'),
           _row('api_key', rc?.string('api_key') ?? '—'),

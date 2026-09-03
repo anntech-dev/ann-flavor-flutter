@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
 import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
@@ -38,14 +39,13 @@ class SyncWebCommand extends Command<void> {
 
     final spec = AnnspecReader.read(projectRoot);
 
-    final webPlatform = spec.platform('web');
+    final webPlatform = spec.app.web;
     if (webPlatform == null) {
       stderr.writeln('No web platform defined in annspec.yaml.');
       exit(1);
     }
 
-    final flavor =
-        webPlatform.flavors.where((f) => f.key == flavorKey).firstOrNull;
+    final flavor = webPlatform.flavors[flavorKey];
     if (flavor == null) {
       stderr.writeln(
           'Flavor "$flavorKey" not found under app.web.flavor in annspec.yaml.');
@@ -68,7 +68,7 @@ class SyncWebCommand extends Command<void> {
 
     // 3. Regenerate version.json
     print('  Generating version.json for $flavorKey...');
-    _writeVersionJson(projectRoot, flavorKey, flavor, webPlatform);
+    _writeVersionJson(projectRoot, flavorKey, flavor, webPlatform.defaults);
 
     // 4. Copy web_flavors/<flavor>/ → web/ (excluding *.tmpl.* and wrangler.toml)
     print('  Copying web_flavors/$flavorKey/ → web/...');
@@ -80,16 +80,14 @@ class SyncWebCommand extends Command<void> {
   void _writeVersionJson(
     String projectRoot,
     String flavorKey,
-    dynamic flavor,
-    dynamic platform,
+    core.WebFlavor flavor,
+    core.WebDefault defaults,
   ) {
-    final name = flavor.name ?? platform.baseName ?? flavorKey;
-    final version = flavor.versionName ?? platform.defaultVersionName ?? '';
-    final buildNumber =
-        (flavor.versionCode ?? platform.defaultVersionCode)?.toString() ?? '';
-    final base = platform.baseId ?? '';
-    final packageName = flavor.id ??
-        (flavor.idSuffix != null ? '$base${flavor.idSuffix}' : base);
+    final resolved = core.AnnSpecResolver.resolveWebFlavor(flavor, defaults, 'release');
+    final name = resolved.effectiveName;
+    final version = resolved.effectiveVersionName;
+    final buildNumber = resolved.effectiveVersionCode?.toString() ?? '';
+    final packageName = resolved.effectiveId;
 
     final json = const JsonEncoder.withIndent('  ').convert({
       'app_name': name,

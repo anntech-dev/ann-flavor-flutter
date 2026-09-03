@@ -143,6 +143,15 @@ class AnnSpecParser {
     buildTypes:  _parseBuildTypeConfigs(_map(m, 'build_types')),
     custom:      _parseCustomConfig(_map(m, 'custom')),
     dartDefines: _parseDartDefines(_map(m, 'dart_defines')),
+    env:         _parseEnv(_map(m, 'env')),
+    infoPlist:   _parseInfoPlist(m['info_plist']),
+    entitlements: _parseEntitlements(m['entitlements']),
+    sdk:         m.containsKey('sdk') ? _parseIosSdk(_map(m, 'sdk')) : null,
+  );
+
+  static IosSdk _parseIosSdk(Map<String, dynamic> m) => IosSdk(
+    ios:          m['ios'] as String?,
+    swiftVersion: m['swift_version'] as String?,
   );
 
   static IosFlavor _parseIosFlavor(Map<String, dynamic> m) => IosFlavor(
@@ -161,7 +170,30 @@ class AnnSpecParser {
     buildTypes:  _parseBuildTypeConfigs(_map(m, 'build_types')),
     custom:      _parseCustomConfig(_map(m, 'custom')),
     dartDefines: _parseDartDefines(_map(m, 'dart_defines')),
+    env:         _parseEnv(_map(m, 'env')),
+    infoPlist:   _parseInfoPlist(m['info_plist']),
+    entitlements: _parseEntitlements(m['entitlements']),
   );
+
+  // Branches on the RAW value's runtime type — must run before any _map()
+  // coercion, since _map() unconditionally casts/coerces to Map and would
+  // silently drop a String value entirely. A YAML value is either a String
+  // (file path) or a Map (inline key -> value overrides); anything else is
+  // treated as absent.
+  static InfoPlistValue? _parseInfoPlist(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return InfoPlistValue.filePath(raw);
+    if (raw is Map) return InfoPlistValue.inline(Map<String, dynamic>.from(raw));
+    return null;
+  }
+
+  // Same branching rules as _parseInfoPlist — see its comment.
+  static EntitlementsValue? _parseEntitlements(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return EntitlementsValue.filePath(raw);
+    if (raw is Map) return EntitlementsValue.inline(Map<String, dynamic>.from(raw));
+    return null;
+  }
 
   static IosCredentials _parseIosCredentials(Map<String, dynamic> m) => IosCredentials(
     signing:  m.containsKey('signing')
@@ -267,6 +299,12 @@ class AnnSpecParser {
     return v;
   }
 
+  /// `env:` — a flat string key-value map, cascading the same as `custom`/
+  /// `dart_defines` but with no nested groups: generic native build-setting
+  /// overrides (e.g. iOS xcconfig), not the Dart-only `custom` mechanism.
+  static Map<String, String> _parseEnv(Map<String, dynamic> m) =>
+    m.map((k, v) => MapEntry(k, v?.toString() ?? ''));
+
   static const _dartDefinesActionKeys = {'compile', 'run', 'deploy'};
 
   /// Parses `dart_defines:` — plain string entries are the common map; the three
@@ -319,6 +357,9 @@ class AnnSpecParser {
         ndkDebugSymbolLevel:    vm['ndkDebugSymbolLevel'] as String?,
         ndkAbiFilters:          _asList<String>(vm['ndkAbiFilters']),
         dartDefines:            _parseDartDefines(_map(vm, 'dart_defines')),
+        env:                    _parseEnv(_map(vm, 'env')),
+        infoPlist:              _parseInfoPlist(vm['info_plist']),
+        entitlements:           _parseEntitlements(vm['entitlements']),
       ));
     });
 

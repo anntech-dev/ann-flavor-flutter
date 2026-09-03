@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 import '../lib_cli/icon/ios_icon_generator.dart';
-import '../lib_cli/icon/xcconfig_icon_wirer.dart';
 
 void main() {
   late Directory tempDir;
@@ -26,119 +25,51 @@ void main() {
       );
     });
 
-    test('throws on non-PNG source', () async {
-      final jpegFile = File(p.join(tempDir.path, 'icon.jpg'))
-        ..writeAsStringSync('fake jpeg');
-      final gen = IosIconGenerator(tempDir.path);
-      expect(
-        () => gen.generateForFlavor('free', jpegFile.path),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(), 'message', contains('PNG'),
-        )),
-      );
-    });
-
-    test('throws on source smaller than 1024x1024', () async {
-      final smallPng = _writeFakePng(p.join(tempDir.path, 'small.png'), 512, 512);
-      final gen = IosIconGenerator(tempDir.path);
-      expect(
-        () => gen.generateForFlavor('free', smallPng.path),
-        throwsA(isA<Exception>().having(
-          (e) => e.toString(), 'message', contains('1024'),
-        )),
-      );
-    });
+    // File type and dimension checks (PNG-ness, 1024x1024 minimum) are
+    // intentionally NOT enforced here — flutter_launcher_icons is the sole
+    // authority on whether a source image is acceptable, and returns its own
+    // error when it isn't.
   });
 
-  group('xcconfig_icon_wirer', () {
-    test('appends key when absent', () {
-      final flutterDir = Directory(p.join(tempDir.path, 'ios', 'Flutter'))
-        ..createSync(recursive: true);
-      final xcconfig = File(p.join(flutterDir.path, 'freeRelease.xcconfig'))
-        ..writeAsStringSync('PRODUCT_BUNDLE_IDENTIFIER=com.example\n');
+  // xcconfig_icon_wirer.dart was retired in plan 035 STEP-2.3:
+  // ios_generator.dart now sets ASSETCATALOG_COMPILER_APPICON_NAME directly
+  // and unconditionally on every generated xcconfig (ios_generator_test.dart
+  // covers this), since a separate after-the-fact patch would be silently
+  // wiped by STEP-2.2's delete-and-regenerate on the next sync.
 
-      wireXcconfig(tempDir.path, 'free');
-
-      final content = xcconfig.readAsStringSync();
-      expect(content, contains('ASSETCATALOG_COMPILER_APPICON_NAME=FreeAppIcon'));
+  group('IosIconGenerator backup/restore', () {
+    // Regression coverage for a real bug: flutter_launcher_icons hardcodes
+    // its iOS output to ios/Runner/Assets.xcassets/AppIcon.appiconset/ (no
+    // config override exists — ios_content_images_path, used previously
+    // here, is not a real flutter_launcher_icons key and silently had no
+    // effect). backupStockCatalog/restoreStockCatalog preserve whatever the
+    // developer's own stock catalog contained across a generation run that
+    // necessarily overwrites it in place.
+    test('backupStockCatalog is a no-op when no stock catalog exists', () {
+      final gen = IosIconGenerator(tempDir.path);
+      expect(() => gen.backupStockCatalog(), returnsNormally);
+      expect(() => gen.restoreStockCatalog(), returnsNormally);
     });
 
-    test('updates existing key in-place', () {
-      final flutterDir = Directory(p.join(tempDir.path, 'ios', 'Flutter'))
-        ..createSync(recursive: true);
-      final xcconfig = File(p.join(flutterDir.path, 'freeRelease.xcconfig'))
-        ..writeAsStringSync(
-          'PRODUCT_BUNDLE_IDENTIFIER=com.example\n'
-          'ASSETCATALOG_COMPILER_APPICON_NAME=OldIcon\n',
-        );
+    test('restoreStockCatalog puts back exactly what backupStockCatalog saved', () {
+      final stockDir = Directory(
+        p.join(tempDir.path, 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset'),
+      )..createSync(recursive: true);
+      File(p.join(stockDir.path, 'Contents.json')).writeAsStringSync('{"original": true}');
 
-      wireXcconfig(tempDir.path, 'free');
+      final gen = IosIconGenerator(tempDir.path);
+      gen.backupStockCatalog();
 
-      final content = xcconfig.readAsStringSync();
-      expect(content, contains('ASSETCATALOG_COMPILER_APPICON_NAME=FreeAppIcon'));
-      expect(content, isNot(contains('OldIcon')));
-    });
+      // Simulate flutter_launcher_icons overwriting the stock catalog in place.
+      stockDir.deleteSync(recursive: true);
+      stockDir.createSync(recursive: true);
+      File(p.join(stockDir.path, 'Contents.json')).writeAsStringSync('{"overwritten": true}');
 
-    test('skips missing xcconfig gracefully', () {
-      // No ios/Flutter dir — should not throw
-      expect(() => wireXcconfig(tempDir.path, 'free'), returnsNormally);
+      gen.restoreStockCatalog();
+
+      final restored = File(p.join(stockDir.path, 'Contents.json')).readAsStringSync();
+      expect(restored, '{"original": true}');
+      expect(Directory(p.join(tempDir.path, '.ann_icon_backup')).existsSync(), isFalse);
     });
   });
-}
-
-/// Writes a minimal valid PNG file with the given IHDR dimensions.
-File _writeFakePng(String path, int width, int height) {
-  final bytes = <int>[];
-
-  // PNG signature
-  bytes.addAll([137, 80, 78, 71, 13, 10, 26, 10]);
-
-  // IHDR chunk: length (13), type, width, height, bit depth (8), color type (2=RGB), ...
-  void writeInt32(int v) {
-    bytes.add((v >> 24) & 0xFF);
-    bytes.add((v >> 16) & 0xFF);
-    bytes.add((v >> 8) & 0xFF);
-    bytes.add(v & 0xFF);
-  }
-
-  final ihdrData = <int>[];
-  ihdrData.addAll(_int32Bytes(width));
-  ihdrData.addAll(_int32Bytes(height));
-  ihdrData.addAll([8, 2, 0, 0, 0]); // bit depth 8, RGB, compression, filter, interlace
-
-  writeInt32(13); // IHDR length
-  bytes.addAll([73, 72, 68, 82]); // 'IHDR'
-  bytes.addAll(ihdrData);
-  writeInt32(_crc32([73, 72, 68, 82, ...ihdrData]));
-
-  // Minimal IEND chunk
-  writeInt32(0);
-  bytes.addAll([73, 69, 78, 68]); // 'IEND'
-  writeInt32(_crc32([73, 69, 78, 68]));
-
-  final file = File(path);
-  file.writeAsBytesSync(bytes);
-  return file;
-}
-
-List<int> _int32Bytes(int v) => [
-      (v >> 24) & 0xFF,
-      (v >> 16) & 0xFF,
-      (v >> 8) & 0xFF,
-      v & 0xFF,
-    ];
-
-int _crc32(List<int> data) {
-  var crc = 0xFFFFFFFF;
-  for (final byte in data) {
-    crc ^= byte;
-    for (var i = 0; i < 8; i++) {
-      if (crc & 1 != 0) {
-        crc = (crc >> 1) ^ 0xEDB88320;
-      } else {
-        crc >>= 1;
-      }
-    }
-  }
-  return (~crc) & 0xFFFFFFFF;
 }

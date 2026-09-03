@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:ann_flutter_flavor/src/plugin_versions.dart';
-import '../model/annspec_model.dart';
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 
 const _pluginId = 'dev.anntech.flavorize';
 
@@ -30,7 +30,7 @@ _GradleFile? _resolveGradle(List<String> pathSegments) {
 /// Ensures the ANN Gradle plugin is wired into the Android project.
 /// Supports both Kotlin DSL (build.gradle.kts) and Groovy DSL (build.gradle).
 class AndroidGenerator {
-  static void generate(String projectRoot, [AnnspecModel? spec]) {
+  static void generate(String projectRoot, [core.AnnSpec? spec]) {
     final androidDir = Directory(p.join(projectRoot, 'android'));
     if (!androidDir.existsSync()) {
       print('  ⚠ No android/ directory found — skipping Android wiring.');
@@ -40,15 +40,13 @@ class AndroidGenerator {
     _patchSettings(androidDir, gradleVersion);
     _patchAppBuild(androidDir);
 
-    if (spec != null) {
-      final android = spec.platform('android');
-      if (android != null) {
-        _generateFlavorManifests(androidDir, android);
-      }
+    final android = spec?.app.android;
+    if (android != null) {
+      _generateFlavorManifests(androidDir, android);
     }
   }
 
-  static String _resolveGradleVersion(AnnspecModel? spec) {
+  static String _resolveGradleVersion(core.AnnSpec? spec) {
     final constraint = spec?.tooling?.gradlePlugin;
     if (constraint == null) return kGradlePluginVersion;
     return constraint.startsWith('^') ? constraint.substring(1) : constraint;
@@ -172,23 +170,27 @@ class AndroidGenerator {
 
   /// Creates android/app/src/<flavor>/AndroidManifest.xml for each flavor if missing,
   /// and patches in GMS Ads meta-data when the flavor declares gms_ads_id.
-  static void _generateFlavorManifests(Directory androidDir, AnnspecPlatform android) {
-    for (final flavor in android.flavors) {
-      final dir = Directory(p.join(androidDir.path, 'app', 'src', flavor.key));
+  static void _generateFlavorManifests(Directory androidDir, core.AndroidPlatform android) {
+    final resolved = core.AnnSpecResolver.resolveAndroid(android);
+    for (final flavorKey in android.flavors.keys) {
+      final dir = Directory(p.join(androidDir.path, 'app', 'src', flavorKey));
       final manifestFile = File(p.join(dir.path, 'AndroidManifest.xml'));
-      final hasAds = flavor.gmsAdsId != null;
+      // No build-type distinction here (matches pre-existing behavior) — use
+      // release as the reference build type for "does this flavor have ads
+      // configured at all", same as the un-cascaded check this replaces.
+      final hasAds = resolved[flavorKey]?.byBuildType['release']?.effectiveGmsAdsId != null;
 
       if (!manifestFile.existsSync()) {
         dir.createSync(recursive: true);
         manifestFile.writeAsStringSync(_flavorManifest(includeAds: hasAds));
-        print('  ✓ Created android/app/src/${flavor.key}/AndroidManifest.xml'
+        print('  ✓ Created android/app/src/$flavorKey/AndroidManifest.xml'
             '${hasAds ? ' (with GMS Ads meta-data)' : ''}');
         continue;
       }
 
       // Manifest exists — patch GMS Ads meta-data if the flavor now has gms_ads_id.
       if (hasAds) {
-        _patchAdsMetaData(manifestFile, flavor.key);
+        _patchAdsMetaData(manifestFile, flavorKey);
       }
     }
   }

@@ -10,8 +10,6 @@ import '../generators/ios_generator.dart';
 import '../generators/firebase_generator.dart';
 import '../generators/fastlane_generator.dart';
 import '../generators/melos_generator.dart';
-import '../icon/ios_icon_generator.dart';
-import '../icon/xcconfig_icon_wirer.dart';
 
 class SyncCommand extends Command<void> {
   @override
@@ -81,49 +79,38 @@ class SyncCommand extends Command<void> {
 
     // Step 3 — iOS wiring (fast, deterministic)
     if (!jsonMode) print('\n[3/7] Wiring iOS (CocoaPods plugin + xcconfig + Info.plist)...');
-    IosGenerator.generate(projectRoot, spec);
+    await IosGenerator.generate(projectRoot, spec);
 
-    // Step 4 — iOS app icons (flutter_launcher_icons + xcconfig)
-    final iosPlatform = spec.platform('ios');
-    if (iosPlatform != null && iosPlatform.flavors.isNotEmpty) {
-      final iconGen = IosIconGenerator(projectRoot);
-      for (final flavor in iosPlatform.flavors) {
-        final iconPath = flavor.icon ?? iosPlatform.defaultIcon;
-        if (iconPath == null) continue;
-        if (!jsonMode) print('\n[icon] Generating iOS icon for ${flavor.key}...');
-        try {
-          await iconGen.generateForFlavor(flavor.key, iconPath);
-          wireXcconfig(projectRoot, flavor.key);
-          if (!jsonMode) print('  ✓ Icon generated for ${flavor.key}');
-        } on Exception catch (e) {
-          stderr.writeln('  ✗ Icon generation failed for ${flavor.key}: $e');
-        }
-      }
-    }
+    // App icon generation is intentionally NOT part of sync. It's a slow,
+    // external-process-per-flavor step (dart run flutter_launcher_icons) that
+    // requires flutter_launcher_icons as a dev_dependency — sync has no way to
+    // check for that, unlike the dedicated "Generate App Icons" action, which
+    // pre-flight-checks the dependency and lets the user pick which flavors to
+    // regenerate. Run that action explicitly when icons need regenerating.
 
     // Step [web] — web flavors (delegated to sync-web subprocess per flavor)
-    final webPlatform = spec.platform('web');
+    final webPlatform = spec.app.web;
     if (webPlatform != null && webPlatform.flavors.isNotEmpty) {
       if (!jsonMode) print('\n[web] Processing web flavors...');
       final dart = Platform.executable;
-      for (final flavor in webPlatform.flavors) {
-        if (!jsonMode) print('  Running sync-web for ${flavor.key}...');
+      for (final flavorKey in webPlatform.flavors.keys) {
+        if (!jsonMode) print('  Running sync-web for $flavorKey...');
         final result = await Process.run(
           dart,
           ['run', 'ann_flutter_flavor', 'sync-web',
-           '--flavor', flavor.key, '--project', projectRoot],
+           '--flavor', flavorKey, '--project', projectRoot],
           workingDirectory: projectRoot,
         );
         if (result.exitCode == 0) {
           if (!jsonMode) {
-            print('  ✓ ${flavor.key}: web assets updated');
+            print('  ✓ $flavorKey: web assets updated');
             final out = result.stdout.toString().trim();
             if (out.isNotEmpty) {
               print(out.split('\n').map((l) => '    $l').join('\n'));
             }
           }
         } else {
-          stderr.writeln('  ✗ ${flavor.key}: sync-web failed\n${result.stderr}');
+          stderr.writeln('  ✗ $flavorKey: sync-web failed\n${result.stderr}');
         }
       }
     }
@@ -142,14 +129,14 @@ class SyncCommand extends Command<void> {
       exitCode = 1;
       return;
     }
-    if (spec.integrations?.firebase == true) {
+    if (spec.app.integrations?.firebase == true) {
       _ensureFirebaseGitignoreEntries(projectRoot);
     }
 
     // Step 5 — Fastlane / iOS gem
     final cocoapodsConstraint = _stripCaret(spec.tooling?.cocoapodsPlugin);
     final fastlaneConstraint  = _stripCaret(spec.tooling?.fastlanePlugin);
-    if (spec.integrations?.fastlane == true) {
+    if (spec.app.integrations?.fastlane == true) {
       if (!jsonMode) print('\n[6/7] Setting up Fastlane (Gemfile)...');
       FastlaneGenerator.generate(projectRoot);
       _ensureFastlaneGemEntry(projectRoot,
@@ -157,13 +144,14 @@ class SyncCommand extends Command<void> {
     } else {
       if (!jsonMode) print('\n[6/7] Fastlane integration disabled — skipping.');
     }
-    if (spec.platform('ios') != null) {
+    if (spec.app.ios != null) {
       _ensureCocoapodsGemEntry(projectRoot,
           jsonMode: jsonMode, versionConstraint: cocoapodsConstraint);
+      _ensureIosMergedGitignoreEntries(projectRoot);
     }
 
     // Step 6 — Melos
-    if (spec.integrations?.melos == true) {
+    if (spec.app.integrations?.melos == true) {
       if (!jsonMode) print('\n[7/7] Setting up Melos scripts (pubspec.yaml)...');
       MelosGenerator.generate(projectRoot, spec);
     } else {
@@ -196,6 +184,36 @@ class SyncCommand extends Command<void> {
     print('  ✓ Added Firebase entries to .gitignore');
   }
 
+  // ann-flavor-cocoapods 0.4.6+ writes merged output (currently
+  // Info/merged/, Entitlements/merged/) at pod-install time — same
+  // disposable/regenerated status as Pods/, never meant to be committed.
+  // ann-flavor-flutter 1.7.2+ also writes into merged/ directly (plan 041
+  // follow-up): the plugin-contributed layer (plugin-contributions.plist/
+  // .entitlements) depends on which plugin packages are resolved on disk
+  // (.flutter-plugins-dependencies), not purely on annspec.yaml like every
+  // other ios/ann/ file, so it belongs with the rest of merged/'s
+  // environment-dependent, never-committed output rather than being a
+  // committed sibling of the flavor-specific files. Uses a wildcard so any
+  // future merge target under ios/ann/ is covered without another tooling
+  // release. Kept local to ios/ann/ (rather than the project root
+  // .gitignore) so it travels with the directory itself.
+  void _ensureIosMergedGitignoreEntries(String projectRoot) {
+    final annDir = Directory(p.join(projectRoot, 'ios', 'ann'));
+    annDir.createSync(recursive: true);
+    final file = File(p.join(annDir.path, '.gitignore'));
+    final existing = file.existsSync() ? file.readAsStringSync() : '';
+
+    const entry = '*/merged/';
+    if (existing.contains(entry)) return;
+
+    final block = '${existing.isEmpty ? '' : '\n'}'
+        '# Merged/environment-dependent output — written by ann-flavor-cocoapods '
+        'at pod-install time and by ann-flavor-flutter at sync time\n'
+        '$entry\n';
+    file.writeAsStringSync(existing + block);
+    print('  ✓ Added merged-output entry to ios/ann/.gitignore');
+  }
+
   // ── CocoaPods gem management ─────────────────────────────────────────────────
 
   static bool _gemPresent(String content, String gemName) =>
@@ -224,6 +242,12 @@ class SyncCommand extends Command<void> {
 
     final hasPod    = _gemPresent(existing, 'cocoapods');
     final hasPlugin = _gemPresent(existing, gemName);
+    // A local path source (monorepo dev convention — see e.g.
+    // test-apps/sample_app/Gemfile) always wins: never overwrite it with a
+    // registry version constraint, and never treat it as needing an update.
+    final hasPathSource = RegExp(
+      r'''gem\s+['"]''' + RegExp.escape(gemName) + r'''['"].*\bpath:''',
+    ).hasMatch(existing);
 
     if (!hasPod) {
       existing = existing.trimRight() + '\n$comment\n$podGemLine\n$pluginGemLine\n';
@@ -231,7 +255,7 @@ class SyncCommand extends Command<void> {
     } else if (!hasPlugin) {
       existing = existing.trimRight() + '\n$pluginGemLine\n';
       changed = true;
-    } else if (versionConstraint != null) {
+    } else if (versionConstraint != null && !hasPathSource) {
       // Update version in-place if present but stale.
       final updated = existing.replaceFirstMapped(
         RegExp(r"gem\s+'" + RegExp.escape(gemName) + r"'(?:\s*,\s*'[^']*')?"),
@@ -253,11 +277,15 @@ class SyncCommand extends Command<void> {
     required bool jsonMode,
     String? versionConstraint,
   }) {
-    // Published gem name (RubyGems: ann-flavor-flutter) — "fastlane-plugin-*" is
-    // only the local plugin-directory naming convention, never a real gem name.
-    const gemName = 'ann-flavor-flutter';
-    // Older Sync Spec runs wrote this nonexistent gem name — migrate it in place.
-    const legacyGemName = 'fastlane-plugin-ann_fastlane_flavor';
+    // Published gem name (RubyGems: ann-flavor-fastlane) — plan 040 renamed
+    // this from the wrong published name "ann-flavor-flutter", which
+    // collided with the unrelated Dart package ann_flutter_flavor.
+    const gemName = 'ann-flavor-fastlane';
+    // Migrates BOTH prior wrong names forward, checked in this order: the
+    // real-but-wrong pre-plan-040 name, then the even older, entirely
+    // nonexistent original name ("fastlane-plugin-*" was only ever the local
+    // plugin-directory naming convention, never a real published gem name).
+    const legacyGemNames = ['ann-flavor-flutter', 'fastlane-plugin-ann_fastlane_flavor'];
     final entry = versionConstraint != null
         ? "gem '$gemName', '~> $versionConstraint'"
         : "gem '$gemName'";
@@ -267,9 +295,12 @@ class SyncCommand extends Command<void> {
     var existing = file.readAsStringSync();
     var changed = false;
 
-    if (_gemPresent(existing, legacyGemName)) {
+    final matchedLegacyName =
+        legacyGemNames.where((name) => _gemPresent(existing, name)).firstOrNull;
+
+    if (matchedLegacyName != null) {
       final updated = existing.replaceFirstMapped(
-        RegExp(r"gem\s+'" + RegExp.escape(legacyGemName) + r"'(?:\s*,\s*'[^']*')?"),
+        RegExp(r"gem\s+'" + RegExp.escape(matchedLegacyName) + r"'(?:\s*,\s*'[^']*')?"),
         (_) => entry,
       );
       if (updated != existing) {

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import '../model/annspec_model.dart';
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 
 /// Renders all *.tmpl.* files in web_flavors/<flavorKey>/ to *.*
 /// by substituting {{variable}} placeholders from annspec.yaml.
@@ -8,7 +8,7 @@ class WebTemplateRenderer {
   final String projectRoot;
   WebTemplateRenderer(this.projectRoot);
 
-  void render(String flavorKey, AnnspecModel spec) {
+  void render(String flavorKey, core.AnnSpec spec) {
     final flavorDir = Directory('$projectRoot/web_flavors/$flavorKey');
     if (!flavorDir.existsSync()) return;
 
@@ -27,23 +27,33 @@ class WebTemplateRenderer {
     }
   }
 
-  Map<String, String> _buildVars(String flavorKey, AnnspecModel spec) {
-    final platform = spec.platform('web');
-    final flavor = platform?.flavors.where((f) => f.key == flavorKey).firstOrNull;
+  Map<String, String> _buildVars(String flavorKey, core.AnnSpec spec) {
+    final platform = spec.app.web;
+    final flavor = platform?.flavors[flavorKey];
 
-    final name = flavor?.name ?? platform?.baseName ?? flavorKey;
+    core.ResolvedBuildOutput? resolved;
+    if (platform != null && flavor != null) {
+      resolved = core.AnnSpecResolver.resolveWebFlavor(flavor, platform.defaults, 'release');
+    }
+
+    final name = resolved?.effectiveName ?? flavorKey;
     final shortName = name.split(' ').first;
-    final id = _resolveId(platform, flavor);
-    final version = flavor?.versionName ?? platform?.defaultVersionName ?? '';
-    final versionCode = (flavor?.versionCode ?? platform?.defaultVersionCode)?.toString() ?? '';
+    final id = resolved?.effectiveId ?? '';
+    final version = resolved?.effectiveVersionName ?? '';
+    final versionCode = resolved?.effectiveVersionCode?.toString() ?? '';
 
-    // theme_color and background_color come from custom.web group
-    final customWeb = flavor?.customByBuildType['release']?['web'] ??
-        platform?.flavors.first.customByBuildType['release']?['web'];
-    final themeColor =
-        customWeb?['theme_color'] as String? ?? '#FFFFFF';
-    final bgColor =
-        customWeb?['background_color'] as String? ?? '#FFFFFF';
+    // theme_color and background_color come from custom.web group. Falls
+    // back to the first web flavor's resolved custom.web if this flavor key
+    // wasn't found — matches the pre-existing fallback behavior.
+    var customWeb = resolved?.effectiveCustom['web'];
+    if (customWeb == null && platform != null && platform.flavors.isNotEmpty) {
+      final firstEntry = platform.flavors.entries.first;
+      customWeb = core.AnnSpecResolver
+          .resolveWebFlavor(firstEntry.value, platform.defaults, 'release')
+          .effectiveCustom['web'];
+    }
+    final themeColor = customWeb?['theme_color'] as String? ?? '#FFFFFF';
+    final bgColor = customWeb?['background_color'] as String? ?? '#FFFFFF';
 
     final outputDir = flavorKey.isNotEmpty ? 'build/web/$flavorKey' : 'build/web';
 
@@ -58,13 +68,6 @@ class WebTemplateRenderer {
       'background_color': bgColor,
       'output_dir': outputDir,
     };
-  }
-
-  String _resolveId(AnnspecPlatform? platform, AnnspecFlavor? flavor) {
-    final base = platform?.baseId ?? '';
-    if (flavor?.id != null) return flavor!.id!;
-    if (flavor?.idSuffix != null) return '$base${flavor!.idSuffix}';
-    return base;
   }
 
   String _substitute(String content, Map<String, String> vars) {

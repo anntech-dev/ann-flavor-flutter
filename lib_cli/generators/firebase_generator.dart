@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import '../model/annspec_model.dart';
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 
 /// Runs `flutterfire configure` for every flavor × platform × build type
 /// that has a project_id in the annspec.yaml, or generates a shell script
@@ -19,12 +20,12 @@ class FirebaseGenerator {
   static const _timeout = Duration(seconds: 120);
 
   static Future<void> generate(
-    AnnspecModel spec,
+    core.AnnSpec spec,
     String projectRoot, {
     String firebaseMode = 'script',
   }) async {
     // Only run when firebase integration is explicitly enabled.
-    if (spec.integrations?.firebase != true) {
+    if (spec.app.integrations?.firebase != true) {
       print('  ⚠ integrations.firebase is not enabled — skipping flutterfire.');
       return;
     }
@@ -38,6 +39,7 @@ class FirebaseGenerator {
 
     if (firebaseMode != 'inline') {
       _writeScript(cmds, projectRoot);
+      _patchFirebaseJson(cmds, projectRoot);
       return;
     }
 
@@ -60,7 +62,64 @@ class FirebaseGenerator {
     } else {
       print('  ✓ Firebase options files generated.');
     }
+
+    _patchFirebaseJson(cmds, projectRoot);
   }
+
+  // ── firebase.json correction ─────────────────────────────────────────────────
+
+  // flutterfire_cli writes its own ios.buildConfigurations.<Config>-<flavor>.fileOutput
+  // entries as a side effect of `flutterfire configure`, independent of the
+  // --ios-out flag above (which only governs ios.default/ios.targets.*). That
+  // value has been observed to end up stale or malformed (e.g. left over from
+  // an earlier interactive run with a different --ios-out) and is never
+  // corrected by a later flutterfire configure re-run for the same
+  // build-configuration key. Since this repo's own build phases already copy
+  // each plist to the stable lib/generated/firebase/ path (REQ-FIRE-00148),
+  // realign any existing buildConfigurations entry to that same path here —
+  // once per sync, deterministically, rather than relying on flutterfire_cli's
+  // own merge behavior for that key.
+  //
+  // Only pre-existing keys are corrected — this never invents a new
+  // buildConfigurations entry (that remains flutterfire configure's job).
+  static void _patchFirebaseJson(List<_FbCmd> cmds, String projectRoot) {
+    final iosCmds = cmds.where((c) => c.platform == 'ios');
+    if (iosCmds.isEmpty) return;
+
+    final jsonFile = File(p.join(projectRoot, 'firebase.json'));
+    if (!jsonFile.existsSync()) return;
+
+    Map<String, dynamic> root;
+    try {
+      root = jsonDecode(jsonFile.readAsStringSync()) as Map<String, dynamic>;
+    } catch (_) {
+      // Malformed firebase.json — leave it alone rather than risk corrupting it further.
+      return;
+    }
+
+    final buildConfigs = root['flutter']?['platforms']?['ios']?['buildConfigurations'];
+    if (buildConfigs is! Map<String, dynamic>) return;
+
+    var changed = false;
+    for (final cmd in iosCmds) {
+      final configKey = '${_capitalize(cmd.buildType)}-${cmd.flavor}';
+      final entry = buildConfigs[configKey];
+      if (entry is! Map<String, dynamic>) continue;
+
+      final stablePath = _iosStablePath(cmd.flavor, cmd.buildType);
+      if (entry['fileOutput'] != stablePath) {
+        entry['fileOutput'] = stablePath;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      jsonFile.writeAsStringSync(jsonEncode(root));
+      print('  ✓ firebase.json buildConfigurations realigned to lib/generated/firebase/');
+    }
+  }
+
+  static String _capitalize(String s) => s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
 
   // ── Script generation ────────────────────────────────────────────────────────
 
@@ -232,25 +291,35 @@ class FirebaseGenerator {
 
   // ── Command builder ──────────────────────────────────────────────────────────
 
-  static List<_FbCmd> _buildCommands(AnnspecModel spec) {
+  static List<_FbCmd> _buildCommands(core.AnnSpec spec) {
     final cmds = <_FbCmd>[];
+    final resolved = core.AnnSpecResolver.resolveAll(spec, buildTypes: _buildTypes);
 
     for (final platformKey in _platforms) {
-      final platform = spec.platform(platformKey);
-      if (platform == null) continue;
+      final resolvedFlavors = switch (platformKey) {
+        'android' => resolved.android,
+        'ios'     => resolved.ios,
+        'web'     => resolved.web,
+        'windows' => resolved.windows,
+        _         => const <String, core.ResolvedFlavor>{},
+      };
+      if (resolvedFlavors.isEmpty) continue;
 
-      for (final flavor in platform.flavors) {
+      final iosPlatform = platformKey == 'ios' ? spec.app.ios : null;
+
+      for (final entry in resolvedFlavors.entries) {
+        final flavorKey = entry.key;
         for (final buildType in _buildTypes) {
-          final fb = buildType == 'release'
-              ? (flavor.firebaseRelease ?? platform.defaultFirebaseRelease)
-              : (flavor.firebaseDebug   ?? platform.defaultFirebaseDebug);
+          final output = entry.value.byBuildType[buildType];
+          if (output == null) continue;
 
+          final fb = output.effectiveFirebase;
           if (fb == null) continue;
 
           // iOS does not use config_file — it downloads config via project_id.
           if (platformKey == 'ios' && fb.configFile != null && fb.projectId == null) {
             throw StateError(
-              '[${flavor.key}/$buildType/ios] config_file is Android-only.\n'
+              '[$flavorKey/$buildType/ios] config_file is Android-only.\n'
               '  iOS downloads its config via project_id at build time.\n'
               '  Fix: replace  config_file: "..."  with  project_id: "your-firebase-project-id"\n'
               "  Run 'dart run ann_flutter_flavor validate' for a full spec check.",
@@ -260,22 +329,23 @@ class FirebaseGenerator {
           if (fb.projectId == null) continue;
 
           final outFile =
-              'lib/generated/firebase/${flavor.key}_${buildType}_${platformKey}_firebase_options.dart';
+              'lib/generated/firebase/${flavorKey}_${buildType}_${platformKey}_firebase_options.dart';
 
-          // Derive bundle ID from flavor or default + suffix
-          final bundleId = flavor.id ?? ((platform.baseId ?? '') + (flavor.idSuffix ?? ''));
+          // Fully resolved bundle ID — includes the build-type suffix, unlike
+          // the old mirror-based computation which silently dropped it.
+          final bundleId = output.effectiveId;
 
-          final iosTarget = platformKey == 'ios'
-              ? AnnspecModel.resolveTarget(platform, flavor, buildType)
+          final iosTarget = platformKey == 'ios' && iosPlatform != null
+              ? core.IosResolution.target(iosPlatform, flavorKey, buildType)
               : null;
 
           cmds.add(_FbCmd(
             projectId:      fb.projectId!,
-            serviceAccount: AnnspecModel.resolveServiceAccount(platform, flavor, buildType),
+            serviceAccount: fb.serviceAccount,
             outFile:        outFile,
             platform:       platformKey,
-            label:          '${flavor.key} / $buildType / $platformKey',
-            flavor:         flavor.key,
+            label:          '$flavorKey / $buildType / $platformKey',
+            flavor:         flavorKey,
             buildType:      buildType,
             bundleId:       bundleId.isEmpty ? null : bundleId,
             iosTarget:      iosTarget,

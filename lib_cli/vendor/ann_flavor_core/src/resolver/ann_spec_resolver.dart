@@ -153,6 +153,25 @@ class AnnSpecResolver {
         flavorDefines:    flavor.dartDefines,
         flavorBtDefines:  flavor.buildTypes[buildType]?.dartDefines ?? DartDefines.empty,
       ),
+      effectiveEnv: _mergeDefinesMap(
+        defaults.env, defaults.buildTypes[buildType]?.env ?? const {},
+        flavor.env, flavor.buildTypes[buildType]?.env ?? const {},
+      ),
+      // Whole-value most-specific-wins — unlike firebase's per-field merge
+      // (via _effectiveBtConfig), info_plist's value (an arbitrary map, or a
+      // file-path string) has no fixed sub-fields to merge independently, so
+      // a more specific level's value replaces a less specific one entirely
+      // rather than being merged key-by-key here (per-key content merging
+      // across levels happens later, in the consuming plugin, not the core).
+      effectiveInfoPlist: flavor.buildTypes[buildType]?.infoPlist
+          ?? flavor.infoPlist
+          ?? defaults.buildTypes[buildType]?.infoPlist
+          ?? defaults.infoPlist,
+      // Same whole-value most-specific-wins rule as effectiveInfoPlist above.
+      effectiveEntitlements: flavor.buildTypes[buildType]?.entitlements
+          ?? flavor.entitlements
+          ?? defaults.buildTypes[buildType]?.entitlements
+          ?? defaults.entitlements,
     );
   }
 

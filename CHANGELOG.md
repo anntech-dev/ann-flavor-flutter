@@ -1,478 +1,362 @@
 # Changelog
 
+## 1.7.2
+
+**Changed:** Version-only release, published alongside the other plugins for parity. No functional changes.
+
+## 1.7.1
+
+**Fixed:** Plugin-contributed permission text (added in 1.7.0) was being mixed into the wrong generated file, making it harder to tell what came from your own config versus a plugin. It now goes into its own file, with no change to the final build output.
+
+## 1.7.0
+
+**Added:** Plugins can now ship default Info.plist/entitlements values (e.g. permission descriptions) that your annspec.yaml can always override. Useful for plugins like ad SDKs that need standard iOS permission text.
+
+## 1.6.2
+
+**Fixed:** A bug where syncing could accidentally remove a local development override for the CocoaPods plugin dependency.
+
+## 1.6.1
+
+**Added:** Generated iOS build files that don't need to be committed to git are now automatically ignored.
+
+## 1.6.0
+
+**Fixed:** Info.plist and entitlements overrides configured for debug (or any non-release) build type were silently ignored and never made it into the generated app.
+
+**Changed:** These per-build-type files are now merged into the app at pod-install time rather than being baked in earlier, working together with a matching update to the CocoaPods plugin.
+
+## 1.5.0
+
+**Added:** A new `env:` option lets you pass custom key-value pairs straight into the generated iOS build settings, with the same per-flavor override behavior as other settings. Also, a Google/Supabase sign-in setting (REVERSED_CLIENT_ID) is now generated automatically from your auth configuration, so you no longer need to set it by hand.
+
+## 1.4.0
+
+**Changed:** The Fastlane integration gem name changed (matching a rename of the underlying package). Syncing your project now updates your Gemfile automatically. Note: you still need to manually update the `fastlane_require` line in your Fastfile.
+
+## 1.3.0
+
+**Changed:** Generated iOS entitlements files now contain only the values you explicitly configured, instead of also duplicating your app's base entitlements file. There's no change to your actual built app — only to what the intermediate generated file contains.
+
+## 1.2.0
+
+**Changed:** Generated iOS Info.plist files no longer duplicate your app's base Info.plist content or hardcode values like app name and version — those already resolve correctly through Xcode's own build settings.
+
+**Added:** Syncing your project now automatically fixes a few standard keys in your app's Info.plist if they're missing or set incorrectly. If you'd hand-written a literal value for one of these (like a hardcoded app name), it will be replaced with the correct placeholder — move any such values into your annspec.yaml instead. This may reformat the file the first time it runs; that's expected and harmless.
+
+## 1.1.0
+
+**Added:** You can now configure entitlements (like Sign in with Apple) per flavor in annspec.yaml, generating a proper entitlements file for each one. Previously, hand-authored entitlements could be silently lost when iOS project files were regenerated — this keeps that configuration safe and version-controlled.
+
+## 1.0.28
+
+**Fixed:** A bug in a third-party icon-generation library was corrupting iOS project build settings during app icon generation. Icon generation now protects your project file from this corruption automatically.
+
+## 1.0.27
+
+**Fixed:** Generating iOS icons for more than one flavor in a single run used to crash starting with the second flavor. All flavors now generate successfully in one pass.
+
+## 1.0.26
+
+**Fixed:** A leftover temporary file from an earlier interrupted run could cause a later, unrelated icon-generation run to silently produce the wrong output. Stale temp files are now cleaned up automatically before every run.
+
+## 1.0.25
+
+**Changed:** Removed a redundant source-image validation step for iOS icon generation. Any problem with your source image (wrong format, too small, etc.) is now reported directly and consistently, matching how Android and web icon generation already behave.
+
+## 1.0.24
+
+**Fixed:** Icon generation could fail with a "command not found" error when launched from the Studio plugin, depending on the system environment. It now reliably finds the correct tool regardless of how it was launched.
+
+## 1.0.23
+
+**Fixed:** Web icon generation as part of the icon-generation command was silently doing nothing. It now works correctly. Also fixed a side effect where a previous run's generated web icons could be left behind unintentionally.
+
+## 1.0.22
+
+**Added:** A new `generate-icons` command is now the single, unified way to generate app icons for Android, iOS, and web — used both from the command line and from Studio's "Generate App Icons" action.
+
+**Fixed:** A long-standing bug meant generated iOS icons were being written into your app's own shared icon catalog instead of a dedicated per-flavor location — overwriting your app's default icon instead of creating a separate icon per flavor. This is now fixed, and your app's original icon is preserved.
+
+## 1.0.21
+
+**Fixed:** A pre-flight check that runs before iOS builds could fail silently on machines with certain system language settings, leaving a real configuration problem unfixed. This now works reliably regardless of system locale.
+
+## 1.0.20
+
+**Fixed:** A new project's very first iOS build could fail with a Swift version conflict error. An additional pre-flight fix now runs early enough to prevent this.
+
+## 1.0.19
+
+**Added:** You can now set the iOS deployment target and Swift version for your whole app in annspec.yaml, generated automatically into your iOS build settings.
+
+**Fixed:** Fixed a fresh project's first iOS build failing because Flutter's default project template ships with the iOS platform line commented out.
+
+## 1.0.18
+
+**Changed:** The flavor `name` property no longer requires null-checking — it now always falls back to a sensible default instead of potentially being null.
+
+**Added:** Added a convenient `id` shorthand for getting a flavor's identifier.
+
+## 1.0.17
+
+**Internal:** Internal refactor of how generated flavor code is structured. No change to any public API or app behavior.
+
+**Added:** Restored convenient shorthand accessors (like `.name`, `.auth`) for the common case of querying the currently active platform and build type.
+
+## 1.0.16
+
+**Changed (breaking):** Reworked how generated code lets you query flavor properties (name, id, auth, Firebase options, custom config) for a specific platform. Each method now takes optional parameters, and a new `existsOn` check lets you safely test whether a flavor is configured for a given platform before querying it. The older separate convenience properties (`.name`, `.auth`, etc.) were removed in favor of this unified approach. Querying a property for a platform your flavor doesn't support now throws a clear error instead of silently returning wrong data.
+
+**Fixed:** Previously, querying a flavor's name or ID for a platform it wasn't configured on could silently return an unrelated default value instead of failing clearly. Also fixed a case where a full ID override in configuration was being ignored.
+
+## 1.0.14
+
+**Added:** New per-platform accessor methods (`nameFor`, `idFor`, `authFor`, `firebaseOptionsFor`) give consistent, predictable behavior when a flavor's configuration varies — or is missing — for a specific platform.
+
+**Changed:** Older properties like `.name` and `.auth` still work as convenient shortcuts built on top of the new methods.
+
+**Deprecated:** A few older method names are deprecated in favor of the new, clearer ones.
+
+**Removed (breaking):** Some old top-level helper functions for Firebase options were removed; use the new per-flavor methods instead.
+
+**Fixed:** Fixed several bugs where flavor names, custom config values, and generated string values could resolve incorrectly or inconsistently across platforms and build types.
+
+## 1.0.13
+
+**Fixed:** Critical fix — installing this package from pub.dev (rather than using it inside its own monorepo) was completely broken, causing every command to fail with a package-resolution error. This is now fixed and verified against a real pub.dev-style install.
+
+## 1.0.12
+
+**Added:** Added support for generating per-flavor iOS launch screen images, matching what Studio's plugin already offered.
+
+## 1.0.11
+
+**Changed:** Generated iOS app icons now live in a dedicated tool-owned location instead of your app's own icon folder, keeping generated files clearly separated from files you manage yourself. Also fixed the corresponding build setting being set reliably every time you sync.
+
+## 1.0.10
+
+**Added:** Added per-flavor iOS Info.plist generation, replacing fragile in-place text edits to your app's single Info.plist. Custom keys you've added by hand (like camera permission text) are always preserved.
+
+**Changed:** Generated iOS build configuration files moved to a new, clearly separated location that's safe to delete and regenerate at any time. Generation now fully regenerates output each time instead of patching files in place, so removed or changed settings always take effect.
+
+## 1.0.9
+
+**Changed:** Internal refactor — the tool now reads configuration through a shared internal library instead of its own separate copy. No user-facing behavior change from this alone.
+
+**Fixed:** Fixed a bug where Firebase and auth settings configured only at the top ("default") level, without being repeated per flavor, were incorrectly ignored. Also fixed bundle/package IDs sometimes missing a configured suffix. Note: this may change generated output for projects that were unknowingly relying on the old, incorrect behavior.
+
+## 1.0.8
+
+**Added:** Internal groundwork for a future Info.plist customization feature. No visible behavior change in this release.
+
+## 1.0.7
+
+**Fixed:** Fixed a case where a stale Firebase configuration file path could cause iOS builds to fail with a "file not found" error during the build phase that copies Firebase config into your app.
+
+## 1.0.6
+
+**Added:** Syncing your project now automatically adds a required Firebase setup hook to your iOS Podfile if it's missing, so Firebase config works correctly out of the box for new projects.
+
+## 1.0.5
+
+**Changed:** Syncing your project no longer automatically regenerates iOS app icons as a side effect, since that step is slow and requires an extra dependency. Generate icons explicitly instead, using the dedicated icon-generation action or command.
+
+## 1.0.4
+
+**Fixed:** Generated code for custom configuration values no longer includes a redundant, always-identical case for "profile" builds, slightly simplifying the generated output.
+
+## 1.0.3
+
+**Fixed:** Fixed Firebase configuration being silently ignored for web and Windows platforms — only Android and iOS were previously wired up correctly.
+
 ## 1.0.2
 
-### Fixed
-- `upgrade` command: `gradle_plugin` and `fastlane_plugin` registry resolution used
-  wrong identifiers since this feature was first implemented — Maven Central's
-  artifact ID was `ann-flavor-gradle` instead of the actual published `flavorize`,
-  and RubyGems' gem name was `fastlane-plugin-ann_fastlane_flavor` instead of the
-  actual published `ann-flavor-flutter`. Both silently failed to resolve ("could not
-  determine latest version" / registry 404); `cocoapods_plugin` worked only because
-  its guessed name happened to match the real one. Maven resolution also switched
-  from the unreliable `search.maven.org` search index to the authoritative
-  `maven-metadata.xml`. ([#55](https://github.com/anntech-dev/ann-flavor-tooling/issues/55))
-- `sync` (and therefore `upgrade`, which always runs `sync`) wrote the same wrong,
-  uninstallable `fastlane-plugin-ann_fastlane_flavor` gem name into every generated
-  `Gemfile`. Now writes the correct `ann-flavor-flutter` gem name and migrates any
-  already-written legacy line in place on the next run, instead of leaving it broken
-  or duplicating the entry.
+**Fixed:** Fixed the `upgrade` command looking up the wrong package names for the Gradle and Fastlane plugins, which caused version lookups to silently fail. Also fixed syncing writing an incorrect, uninstallable Fastlane gem name into your Gemfile — this is now corrected automatically, including fixing any already-broken Gemfile from a previous sync.
 
 ## 1.0.1
 
-### Changed
-- `AnnspecReader` now parses `annspec.yaml` via the shared `ann_flavor_core` package instead of ad-hoc YAML traversal ([ADR-008](../../docs/02-decisions/008-core-delegation-mandate.md)).
+**Changed:** Configuration parsing now goes through a shared internal library instead of ad-hoc parsing logic.
 
-### Fixed
-- Fixed a cascade precedence bug in `service_account`/`target` resolution: a flavor's own top-level Firebase override could be silently outranked by the *default* config's per-build-type override. The 4-level cascade (flavor build-type → flavor → default build-type → default) is now applied correctly.
-- `custom:` config now resolves correctly for `profile` builds, not just `debug`/`release`.
+**Fixed:** Fixed a precedence bug where a flavor's own Firebase settings could be incorrectly overridden by unrelated default settings. Also fixed custom configuration not resolving correctly for profile builds.
 
 ## 1.0.0
 
-### Added
-- `tooling:` section in `annspec.yaml` — declare `gradle_plugin`, `cocoapods_plugin`, and `fastlane_plugin` version constraints. `sync` reads these to patch `android/settings.gradle.kts` and `Gemfile` with the specified versions.
-- `upgrade` CLI command — resolves the latest matching version for each `tooling:` field from Maven Central (Gradle) or RubyGems (CocoaPods/Fastlane), patches `annspec.yaml`, and runs `sync`. Exact pins (`x.y.z`) are skipped; absent fields are skipped.
+**Added:** New `tooling:` section in annspec.yaml lets you declare and pin plugin versions. A new `upgrade` command automatically finds and applies the latest matching versions.
 
-### Changed
-- `kGradlePluginVersion` is now a fallback used only when `tooling.gradle_plugin` is absent from `annspec.yaml`. Set `tooling.gradle_plugin` in your spec to manage the version explicitly.
-- `sync` Gemfile patching for CocoaPods and Fastlane now writes pessimistic version constraints (`~> x.y.z`) when a version is declared in `tooling:`.
-
----
+**Changed:** Syncing now writes more precise version constraints into your project files when a version is declared in the new `tooling:` section.
 
 ## 0.7.11
 
-### Fixed
-- Bumped bundled Gradle plugin version to 2.3.6 — `FirebaseCopyTask` now correctly handles `profile` build type by reusing the `release` Firebase config (fixes #45).
-- Bumped bundled CocoaPods plugin version to 0.1.17 — Firebase plist build phase path corrected (fixes #46).
-
----
+**Fixed:** Bundled plugin updates fix a profile-build Firebase config issue on Android and a Firebase file path issue on iOS.
 
 ## 0.7.10
 
-### Fixed
-- Bumped bundled Gradle plugin version to 2.3.5 — `google-services.json` is no longer deleted after each build, preventing missing file errors on subsequent runs.
-
----
+**Fixed:** Bundled Android plugin update fixes a bug where your Firebase config file was being deleted after every build, causing failures on subsequent builds.
 
 ## 0.7.9
 
-### Changed
-- Version bump for pub.dev release — no functional changes.
-
----
+**Changed:** Maintenance release — no user-facing changes.
 
 ## 0.7.8
 
-### Changed
-- Bumped bundled Gradle plugin version to 2.3.4 — `AndroidManifest.xml` is no longer rewritten on every build when there are no logical changes (fixes #44).
-
----
+**Changed:** Bundled Android plugin update stops an unnecessary file rewrite on every build when nothing actually changed.
 
 ## 0.7.7
 
-### Fixed
-- Gemfile duplicate detection for `ann-flavor-flutter` now recognises both single and double quote styles, preventing duplicate gem lines.
-
----
+**Fixed:** Fixed a bug that could create duplicate entries in your Gemfile depending on which quote style was used.
 
 ## 0.7.6
 
-### Fixed
-- `sync spec` now writes both `require 'ann-flavor-cocoapods'` and `require 'annai-flutter-flavor'` in the Podfile header instead of a `plugin` directive.
-
----
+**Fixed:** Fixed the required Podfile setup lines that get written during sync.
 
 ## 0.7.5
 
-### Fixed
-- `sync spec` now writes `plugin 'ann-flavor-cocoapods'` in the Podfile instead of `plugin 'ann-ios-flavorize'`, matching the actual gem name in the Gemfile.
-
----
+**Fixed:** Fixed an incorrect plugin name being written into your Podfile during sync.
 
 ## 0.7.4
 
-### Changed
-- Version bump — no functional changes.
-
----
+**Changed:** Maintenance release — no user-facing changes.
 
 ## 0.7.3
 
-### Fixed
-- **`sync`**: Gemfile duplicate detection now recognises both single and double quote styles for `gem "cocoapods"`.
-
----
+**Fixed:** Fixed duplicate-entry detection in your Gemfile to handle both quote styles correctly.
 
 ## 0.7.2
 
-### Changed
-- **`sync-web`**: removed web icon generation — use the app icons command instead.
-- **`sync`**: removed automatic `.gitignore` mutation for web flavor outputs (`manifest.json`, `index.html`, `version.json` are intentionally tracked).
-
----
+**Changed:** Removed web icon generation from the `sync-web` command (use the dedicated app icons command instead) and stopped automatically modifying .gitignore for web build output files, since those are meant to be tracked in git.
 
 ## 0.7.1
 
-### Added
-- **Plan 027**: `sync-web` `_copyToWeb` now excludes `wrangler.toml` (alongside `*.tmpl.*` files) so the rendered Cloudflare Workers config never enters `web/`.
-- `WebTemplateRenderer` adds `{{output_dir}}` template variable — resolves to `build/web/<flavor>` when a flavor is set, or `build/web` when no flavor is used.
-
----
+**Added:** Web asset syncing now correctly excludes a Cloudflare Workers config template from being copied into your web output. Also added a new template variable for referencing the per-flavor web output directory.
 
 ## 0.7.0
 
-### Added
-- **Plan 026**: New `sync-web` CLI command — selects a web flavor, renders `*.tmpl.*` templates, regenerates `version.json`, generates PWA icons, and copies assets to `web/` (excluding template sources).
-- `sync spec` now processes all web flavors via a `[web]` step that delegates to `sync-web` as a subprocess for each flavor.
-- `web/manifest.json`, `web/index.html`, and `web/version.json` are automatically added to `.gitignore` by `sync spec`.
-- `WebTemplateRenderer` — substitutes `{{variable}}` placeholders in `*.tmpl.*` files using values cascaded from `annspec.yaml`.
-- `WebScaffoldGenerator` — scaffolds starter `manifest.tmpl.json` and `index.tmpl.html` templates via `--scaffold-manifest` / `--scaffold-index` flags.
-- `WebIconGenerator` — generates PWA icon sizes (192, 512, 192-maskable, 512-maskable) into `web_flavors/<flavor>/icons/` using `flutter_launcher_icons`.
-
----
+**Added:** New `sync-web` command handles web flavor setup end-to-end: selecting a flavor, rendering template files, regenerating version info, generating PWA icons, and copying everything into your web build. Also added template-based scaffolding helpers for getting started with web manifests and HTML.
 
 ## 0.6.0
 
-### Added
-- `AnnFlavorConfig.appleId` — exposes the `stores.app_store.apple_id` value from
-  `annspec.yaml` in the generated `ann_flavor.g.dart`. Returns `null` when the field
-  is not set. Access at runtime: `AnnFlavor.current.appleId`.
-
----
+**Added:** Your app's App Store ID (if configured) is now available at runtime through the generated flavor config.
 
 ## 0.5.0
 
-### Added
-- **Plan 011**: `icon` field added to `AnnspecFlavor` and platform defaults in the CLI model and reader. Parsed for android and iOS platforms.
-- **Plan 011**: `IosIconGenerator` generates per-flavor iOS icon sets via `flutter_launcher_icons`. Source PNG is validated (must be 1024×1024).
-- **Plan 011**: `wireXcconfig` patches `<flavor>Release.xcconfig` and `<flavor>Debug.xcconfig` with `ASSETCATALOG_COMPILER_APPICON_NAME` so Xcode picks up the generated icon set.
-- **Plan 011**: `sync` command now includes step 4 — iOS icon generation for all flavors with an `icon` configured, inserted between iOS wiring (step 3) and Firebase (step 5).
-- All three cores (Kotlin, Dart, Ruby) updated: `icon` field parsed and resolved with cascade (`flavor.icon ?? default.icon`); `effectiveIcon` / `effective_icon` exposed on `ResolvedBuildOutput`.
-
----
+**Added:** Added per-flavor iOS icon support, including automatic generation from a source image and the build settings needed for Xcode to pick up the right icon per flavor. Syncing now includes icon generation as an automatic step for any flavor with an icon configured.
 
 ## 0.4.12
 
-### Fixed
-- **DEF-024**: `_writeAuthGetter` now correctly applies platform default auth for all four
-  `AnnPlatform` values. Previously `web` and `windows` defaults were never applied (always
-  emitting `return null;`), and android/ios defaults were also silently ignored when no
-  flavor entry existed for that platform. Auth configured under
-  `<platform>.default.build_types.release/debug.auth` in `annspec.yaml` is now emitted
-  correctly for all platforms.
+**Fixed:** Fixed a bug where platform-level default auth configuration was being ignored for web and Windows, and in some cases for Android and iOS as well.
 
 ## 0.4.11
 
-### Fixed
-- **DEF-023**: Generated `AnnPlatform` switch statements in `authRelease`, `authDebug`, `optionsRelease`,
-  and `optionsDebug` are now exhaustive. All four `AnnPlatform` arms (`android`, `ios`, `web`, `windows`)
-  are always emitted; platforms without config emit `return null;`. Removes the Dart 3 non-exhaustive
-  switch compile error in consumer projects that only configure `android` and `ios`.
-- **Lint**: Generated file now emits `// ignore: depend_on_referenced_packages` before the
-  `firebase_core` import to suppress the lint warning for transitive dependencies.
+**Fixed:** Fixed a Dart compile error in generated code that only configured some platforms. Also cleaned up a lint warning in generated files.
 
 ## 0.4.10
 
-### Added
-- **Three firebase helper functions**: `flavorFirebaseOptions()` (auto-selects by build type),
-  `flavorFirebaseOptionsRelease()` (always release), `flavorFirebaseOptionsDebug()` (always debug).
-  The previous single `flavorFirebaseOptions()` function is replaced by this trio.
-- **`auth()` concrete default on `AnnFlavorConfig`**: dispatches to `authRelease()` or `authDebug()`
-  based on `AnnFlavor.buildType`. Consumers no longer need to implement `auth()` themselves.
+**Added:** Added separate helper functions for getting Firebase options by build type, and a convenient default `auth()` method that automatically picks the right config for the current build.
 
-### Breaking
-- **`auth()` renamed to `authRelease()`** in `AnnFlavorConfig`. Any class that overrides `auth()`
-  must rename the override to `authRelease()`. The `ann_flutter_flavor sync` command regenerates
-  `ann_flavor.g.dart` with the correct method name automatically.
-- The `_<Flavor>Firebase` private class now exposes `optionsRelease()` instead of `options()`.
-  Generated code is updated automatically on next sync.
+**Breaking:** The `auth()` method was renamed to `authRelease()` — if you had overridden it, rename your override. Running `sync` regenerates the affected file automatically with the correct name.
 
-### Fixed
-- **DEF-021** (Gradle 2.0.16): `PostBuildProcessingTask` annotation fix — `FirebaseCopyTask` now
-  runs reliably before cleanup. Update the Gradle plugin version in your project to 2.0.16.
-- **Version sync** — bundled Gradle plugin reference (`kGradlePluginVersion`) updated to `2.0.16`.
-
----
+**Fixed:** Bundled Android plugin update ensures Firebase file copying happens reliably before build cleanup runs.
 
 ## 0.4.9
 
-**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`) to `2.0.15`
-(DEF-020: `google-services.json` copy path fix).
-
----
+**Fixed:** Bundled Android plugin update fixes a Firebase config file copy path issue.
 
 ## 0.4.8
 
-### Fixed
-- **DEF-019**: `--target` flag corrected to `--ios-target` — the flag name used by `flutterfire configure` v1.4.0.
-
----
+**Fixed:** Fixed an incorrect command-line flag name used when generating Firebase configuration for iOS.
 
 ## 0.4.7
 
-### Added
-- **DEF-019** (`target` field): New optional `target` field inside `firebase` blocks
-  (iOS only) — names the Xcode target passed to `flutterfire configure --target`.
-  Resolves via a 4-level cascade identical to `service_account`. Defaults to `"Runner"`
-  when absent at all cascade levels. Valid in `default.firebase`, `default.build_types.<bt>.firebase`,
-  `flavor.<n>.firebase`, and `flavor.<n>.build_types.<bt>.firebase`.
+**Added:** You can now specify which Xcode target Firebase setup should target, configurable per flavor and build type.
 
-### Fixed
-- **DEF-019**: iOS `flutterfire configure` now passes `--ios-out ios/Runner/GoogleService-Info.plist`
-  (exact basename required by flutterfire v1.4.0) and `&&`-chains a `cp` to the stable committed
-  path at `lib/generated/firebase/GoogleService-Info-{flavor}-{buildType}.plist` followed by `rm`.
-  Previously `--ios-out` was set to the stable path directly, causing flutterfire v1.4.0 to throw
-  `ValidationException: --ios-out basename must be exactly GoogleService-Info.plist`.
-
----
+**Fixed:** Fixed Firebase setup for iOS failing due to an incorrect output file argument.
 
 ## 0.4.6
 
-### Added
-- **DEF-017**: New `validate-testspec` CLI command — validates `anntestspec.yaml`
-  standalone, exits 1 if not found or if the file contains errors. Supports
-  `--format json` for machine consumption (CI-friendly). The `validate` command also
-  runs testspec validation automatically and includes a `testspec` key in its JSON
-  output.
-- **DEF-017**: `sync` now adds `gem 'ann-flavor-cocoapods'` to the Gemfile when iOS
-  is configured in `annspec.yaml`. Previously the CocoaPods plugin gem was never
-  added automatically, causing `pod install` to fail with "plugin
-  `ann-ios-flavorize` not installed".
+**Added:** New `validate-testspec` command validates your test spec file on its own, with a machine-readable output option for CI use. Syncing now also automatically adds the required CocoaPods plugin to your Gemfile when iOS is configured, fixing a previously confusing "plugin not installed" build failure.
 
-### Fixed
-- **DEF-018**: Generated `firebase.sh` now sets `export CI=true` at the top of the
-  script. This suppresses `flutterfire`'s ANSI escape codes and spinner sequences
-  (`[A[2K⠹ …`) when the script is run in an IDE terminal or any non-TTY context.
-- **DEF-014**: `firebase.sh` now writes `google-services.json` and
-  `GoogleService-Info.plist` to `lib/generated/firebase/` with stable
-  flavor/buildType-scoped filenames instead of routing them to `$ANN_TEMP_DIR`.
-  These files are safe to commit and are read by the Gradle and CocoaPods build
-  plugins on every build.
-
-  `sync` now appends `.gitignore` entries to prevent the build-plugin target
-  copies (`android/app/src/**/google-services.json` and
-  `ios/**/GoogleService-Info.plist`) from being committed.
-
-  The script cleanup step is narrowed from `rm -rf lib/generated/firebase/*`
-  to `rm -f lib/generated/firebase/*_firebase_options.dart` so committed
-  JSON/plist sources are not wiped on re-run.
-
----
+**Fixed:** Fixed noisy terminal output from Firebase setup scripts when run in non-interactive environments. Also fixed Firebase config files being written to a temporary location instead of a stable, committable one, and adjusted cleanup so committed Firebase files are no longer accidentally deleted on re-run.
 
 ## 0.4.5
 
-### Fixed
-- **DEF-006**: `_patchSettings()` now updates the Gradle plugin version in-place when
-  the entry already exists but carries a stale version, for both KTS and Groovy DSL.
-  Previously only the first-time insertion path wrote the correct version.
+**Fixed:** Fixed the Gradle plugin version not being updated in your project when an entry already existed but was out of date.
 
-### Changed
-- **`--firebase-mode` default changed from `run` to `script`** _(breaking change in default behaviour)_
-
-  `dart run ann_flutter_flavor sync` now generates `lib/generated/scripts/firebase.sh`
-  by default instead of executing `flutterfire configure` inline. This prevents the sync
-  step from hanging when Firebase auth is not available at sync time.
-
-  **Migration:** if you relied on the old inline-execution default, add `--firebase-mode inline`
-  explicitly. The `--firebase-mode run` value has been **removed** — use `inline` instead.
-
-  | Old | New |
-  |-----|-----|
-  | `dart run ann_flutter_flavor sync` | Equivalent to `--firebase-mode inline` (old) → now `--firebase-mode script` (default) |
-  | `dart run ann_flutter_flavor sync --firebase-mode run` | Use `--firebase-mode inline` |
-  | `dart run ann_flutter_flavor sync --firebase-mode script` | Unchanged |
-
----
+**Changed:** The default mode for generating Firebase configuration during sync changed from running immediately to generating a script you run separately — this prevents sync from hanging when Firebase authentication isn't available. If you relied on the old immediate-run behavior, you'll need to opt back into it explicitly; see the migration note in the technical changelog for the exact flag.
 
 ## 0.4.4
 
-**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`) to `2.0.12`.
-
----
+**Changed:** Maintenance release — bundled Android plugin version update, no functional change to this package.
 
 ## 0.4.3
 
-**Version sync** — updated bundled Gradle plugin reference (`kGradlePluginVersion`)
-to 2.0.11 (firebase android default fix). No Flutter CLI behaviour changes.
-
----
+**Changed:** Maintenance release — bundled Android plugin version update fixing a Firebase default config issue, no change to this package's own behavior.
 
 ## 0.4.2
 
-**Comments in generated Podfile and Gemfile** — `plugin 'ann-ios-flavorize'` in
-`ios/Podfile` and `gem "ann-flavor-flutter"` in `Gemfile` are now preceded by a
-comment explaining they were added by `ann_flutter_flavor`, making it clear these
-lines should not be removed manually.
-
-**`applicationId` and `minSdk` no longer overwritten** — `sync` no longer rewrites
-`defaultConfig.applicationId` or `minSdk` in `android/app/build.gradle(.kts)`.
-These values are owned by the developer; per-flavor `applicationId` is managed by
-the ANN Gradle plugin at Gradle sync time.
-
-**Firebase script improvements** — `--firebase-mode script` now generates a more
-robust shell script: old generated files are cleaned before re-running, each
-`flutterfire configure` call reports success/failure individually, and a summary
-is printed at the end. The script exits with a non-zero code if any command failed.
-
-**Accurate `flutterfire configure` arguments** — the generated commands (both
-`run` mode and `script` mode) now include `-i`/`-a` (bundle ID) and
-`--ios-build-config` (e.g. `Release-ledger_in`), ensuring flutterfire targets
-the correct registered app and Xcode build configuration in multi-flavor projects.
+**Changed:** Generated Podfile and Gemfile entries now include an explanatory comment so it's clear they shouldn't be removed by hand. Also, syncing no longer overwrites your app's bundle ID or minimum SDK version in your Android build file — those remain yours to manage. Firebase setup scripts are now more robust, reporting success or failure clearly and exiting with an error code if anything failed. Generated Firebase commands are also now more accurate for multi-flavor projects.
 
 ## 0.4.1
 
-**`service_account` 4-level cascade** — `service_account` can now be placed at
-`default.firebase.service_account` or `flavor.<n>.firebase.service_account` to share
-one key across all build types without repetition. Full cascade (most-specific wins):
-1. `flavor.<n>.build_types.<bt>.firebase.service_account`
-2. `flavor.<n>.firebase.service_account`
-3. `default.build_types.<bt>.firebase.service_account`
-4. `default.firebase.service_account`
-
----
+**Added:** Firebase service account credentials can now be set once at a shared level instead of being repeated for every build type, using the same override cascade as other settings.
 
 ## 0.4.0
 
-**`--firebase-mode script`** — `sync` accepts `--firebase-mode script` to write
-`lib/generated/scripts/firebase.sh` instead of running `flutterfire configure` inline.
-Use when Firebase auth is unavailable at sync time (e.g. the service account is decoded
-in a later CI step). The generated script navigates to the project root automatically.
+**Added:** New `--firebase-mode script` option generates a shell script for Firebase setup instead of running it immediately — useful when Firebase credentials aren't available at sync time. Sync now also validates your configuration before generating any files, aborting cleanly if there are errors. Added a `--format json` output option for CI and IDE integrations. Added a `doctor` command (replacing the old `version` command) that checks your installed plugin versions against expected targets.
 
-**iOS `config_file` guard** — sync now aborts with a clear error when an iOS firebase
-block has `config_file` without `project_id`. iOS must use `project_id` mode; config_file
-is Android-only.
-
-**`sync` pre-flight validation** — `sync` now runs `validate` before generating any
-files. If the spec has errors, sync aborts immediately with exit 1 and no files are
-written. Warnings are printed but generation continues.
-
-**Step reorder** — Firebase (`flutterfire configure`) now runs after the fast
-deterministic steps (Dart → Android → iOS) instead of second. New step order:
-`[0]` validate → `[1]` Dart → `[2]` Android → `[3]` iOS → `[4]` Firebase →
-`[5]` Fastlane → `[6]` Melos.
-
-**`--format json`** — `sync` and `validate` accept `--format json` to emit the
-pre-flight result as machine-readable JSON on stdout. All other output goes to stderr.
-Useful for IDE integrations and CI pipelines.
-
-**`doctor` command** — replaces `version`. Shows the `ann_flutter_flavor` version and
-checks each linked plugin's installed version against the expected target. The old
-`version` command has been removed.
-
-**Firebase: `config_file` on iOS is now a hard error** — `sync` exits 1 immediately
-when an iOS firebase block contains `config_file`. iOS must use `project_id` (which
-triggers `flutterfire configure` to generate the options file). See the Firebase Setup
-section in the README for setup guidance.
+**Changed:** Reordered internal sync steps for better performance. Using `config_file` for Firebase on iOS is now a hard error — iOS must use `project_id` instead.
 
 ## 0.3.0
 
-**Firebase service account auth** — `flutterfire configure` now authenticates
-exclusively via the `service_account` field in `annspec.yaml`. ADC (`gcloud auth`) and
-`firebase login` are no longer used or supported. Set `service_account` in your firebase
-block alongside `project_id`; `sync` will warn if `project_id` is set without a
-service account.
+**Changed:** Firebase setup now authenticates exclusively via a service account — Google Cloud/Firebase CLI login is no longer used or supported.
 
-**`validate --format json`** — the `validate` command now accepts `--format json`,
-emitting a single JSON object on stdout with all errors and warnings. Exit code 1 when
-any error is present. Used by the Studio plugin (1.1.0) for IDE-integrated validation.
-
-**`version` command** — new command that reads `pubspec.lock`,
-`android/settings.gradle.kts`, and `Gemfile.lock` to compare installed plugin versions
-against expected targets. Exits 1 when any detectable plugin is outdated.
-
-**Firebase validation improvements** — new checks:
-- Error: `firebase.file` key (renamed to `config_file` in 0.1.6) is now a hard error with a migration hint
-- Warning: `project_id` set without a `service_account`
-- Warning: `service_account` set alongside `config_file` (ineffective)
-- Warning: `integrations.firebase: true` set but no firebase blocks configured in spec
+**Added:** Added a `validate --format json` option for IDE integration, and a new `version` command that checks your installed plugin versions against what's expected. Also added several new validation warnings around Firebase configuration.
 
 ## 0.2.5
 
-Internal publish-workflow improvements. No user-facing changes.
+**Changed:** Internal publishing process improvements — no user-facing changes.
 
 ## 0.2.4
 
-**120-second timeout on `flutterfire configure`** — prevents sync from hanging
-indefinitely when auth prompts or network issues stall the FlutterFire CLI.
+**Added:** Firebase setup now times out after 120 seconds instead of potentially hanging forever on auth or network issues.
 
-**Signing path resolution** — relative cert/key paths in `credentials.signing` are
-now resolved to absolute paths before being passed to Gradle, preventing build failures
-when `pod install` or `gradle` are invoked from a different working directory.
+**Fixed:** Fixed relative signing certificate/key paths sometimes not resolving correctly depending on which directory a build was run from.
 
 ## 0.2.2
 
-**Redesigned `summary` command** — output is now organised by flavor × build type,
-showing fully resolved (cascaded) values for every field:
-
-- Each flavor has a block per build type (`release`, `debug`, …)
-- Every field shown is the effective value after the default → flavor → build type cascade: id, name, version, firebase, auth, admob, stores, custom, and Android build-type flags
-- When no flavors are defined, the default values are shown per build type
-- The old top-level "default" block is removed
+**Changed:** Redesigned the `summary` command's output to be organized by flavor and build type, showing the fully resolved value of every setting after all your configuration layers are applied.
 
 ## 0.2.1
 
-**`enabled: false` support in validate** — if `annspec.yaml` sets `enabled: false`, the `validate` command now shows a warning at the top explaining that all plugins will ignore the file, while still running full structural validation on the rest of the spec.
-
-**Improved `validate` output** — every error and warning now shows:
-- The exact YAML path where the problem is (e.g. `app.android.flavor.free.stores.google_play.priority`)
-- A precise description of what is wrong
-- A `→` fix hint telling you what to add, change, or remove
-
-Also: parse-time errors (missing `app:` root key, old `annai_app:` key) now print a clear message with a migration hint instead of a raw Dart type error.
+**Added:** The `validate` command now shows a warning when your spec is disabled, and gives much more detailed error and warning messages — including the exact location of the problem and a suggested fix.
 
 ## 0.2.0
 
-**Breaking: `annai_app:` root key renamed to `app:`** — `annspec.yaml` files using the old
-`annai_app:` root key must be updated. The CLI shows a clear migration hint if the old key
-is detected.
+**Changed (breaking):** The root configuration key in annspec.yaml was renamed from `annai_app:` to `app:`. A clear migration message is shown if the old key is detected.
 
 ## 0.1.9
 
-Internal pub.dev score improvements (documentation, example, analysis options). No
-user-facing behaviour changes.
+**Changed:** Internal documentation and packaging improvements for pub.dev — no user-facing behavior changes.
 
 ## 0.1.7
 
-**Expanded `validate` command** — comprehensive field-level checks across the entire spec:
-bundle IDs, version formats, firebase mode conflicts, store IDs, signing paths, and
-unknown field detection.
+**Added:** Greatly expanded the `validate` command with comprehensive checks across bundle IDs, version formats, Firebase settings, store IDs, signing paths, and unrecognized fields.
 
 ## 0.1.6
 
-**`buildType` auto-detection** — `AnnFlavor.buildType` is now derived automatically
-from Dart's `kDebugMode` / `kReleaseMode`. The `buildType` parameter is no longer
-needed in `AnnFlavor.init()`.
-
-**`flutterfire configure` invoked directly during sync** — removes the generated
-`firebase.sh` shell script. Firebase configuration is now driven entirely by the
-`project_id` field in `annspec.yaml`.
-
-**Firebase config refactored** — `path`, `firebase_app_id`, and `build_target` fields
-are replaced by two mutually exclusive modes:
-- `config_file` — path to a static `google-services.json` / `GoogleService-Info.plist`
-- `project_id` — runs `flutterfire configure` during sync to generate options files
-
-**Example app added** — a real `flutter create` example with `free` / `pro` flavors
-is included in the package.
+**Added:** Build type (debug/release) is now detected automatically — no need to pass it manually during setup. Firebase configuration is simplified into two clear modes: pointing to a static config file, or generating one automatically. An example app with multiple flavors is now included in the package.
 
 ## 0.1.4
 
-**`integrations` block** — new top-level `integrations:` key in `annspec.yaml` with
-`fastlane` and `melos` flags. When enabled:
-- `fastlane: true` — `sync` generates a `Gemfile` wiring the Fastlane plugin
-- `melos: true` — `sync` patches a managed block in `pubspec.yaml` with Melos scripts
-
-The managed block uses start/end markers so user-authored content outside the block
-is never overwritten.
+**Added:** New `integrations:` section lets you enable Fastlane and Melos support, automatically generating the relevant configuration files. Manually written content in these files is always preserved.
 
 ## 0.1.3
 
-Internal publish pipeline improvements (per-plugin tagging, unified workflow). No
-user-facing behaviour changes.
+**Changed:** Internal publishing pipeline improvements — no user-facing behavior changes.
 
 ## 0.1.2
 
-Internal CI/workflow fix. No user-facing behaviour changes.
+**Changed:** Internal CI/workflow fix — no user-facing behavior changes.
 
 ## 0.1.1
 

@@ -122,7 +122,9 @@ class UpgradeCommand extends Command<void> {
       case 'cocoapods_plugin':
         return 'ann-flavor-cocoapods';
       case 'fastlane_plugin':
-        return 'ann-flavor-flutter'; // published gem name (fastlane-plugin-* is only the local directory convention)
+        return 'ann-flavor-fastlane'; // published gem name (plan 040 — renamed
+        // from the wrong "ann-flavor-flutter", which collided with the Dart
+        // package name; "fastlane-plugin-*" is only the local directory convention)
       default:
         return field;
     }

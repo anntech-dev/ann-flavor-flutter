@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
-import '../model/annspec_model.dart';
 import '../validators/testspec_validator.dart';
 
 const _androidOnlyBuildTypeFields = [
@@ -64,7 +64,7 @@ class ValidateCommand extends Command<void> {
     final errors   = <_Issue>[];
     final warnings = <_Issue>[];
 
-    AnnspecModel spec;
+    core.AnnSpec spec;
     YamlMap rawDoc;
 
     try {
@@ -95,17 +95,21 @@ class ValidateCommand extends Command<void> {
 
     final rawApp = rawDoc['app'] as YamlMap?;
 
-    for (final platform in spec.platforms) {
-      _validatePlatform(platform, rawApp, errors, warnings);
+    final annspecFlavorKeys = <String, Set<String>>{};
+
+    if (spec.app.android != null) {
+      final android = spec.app.android!;
+      annspecFlavorKeys['android'] = android.flavors.keys.toSet();
+      _validateAndroid(android, rawApp?['android'] as YamlMap?, errors, warnings);
+    }
+    if (spec.app.ios != null) {
+      final ios = spec.app.ios!;
+      annspecFlavorKeys['ios'] = ios.flavors.keys.toSet();
+      _validateIos(ios, rawApp?['ios'] as YamlMap?, errors, warnings);
     }
 
     _checkFirebaseIntegration(spec, errors, warnings);
     _checkDeprecatedFirebaseFields(rawDoc, errors);
-
-    final annspecFlavorKeys = <String, Set<String>>{
-      for (final platform in spec.platforms)
-        platform.key: platform.flavors.map((f) => f.key).toSet(),
-    };
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -121,26 +125,24 @@ class ValidateCommand extends Command<void> {
     if (errors.isNotEmpty || testspecResult.errors.isNotEmpty) exitCode = 1;
   }
 
-  // ── Platform ───────────────────────────────────────────────────────────────
+  // ── Android platform ───────────────────────────────────────────────────────
 
-  void _validatePlatform(
-    AnnspecPlatform platform,
-    YamlMap? rawApp,
+  void _validateAndroid(
+    core.AndroidPlatform platform,
+    YamlMap? rawPlatform,
     List<_Issue> errors,
     List<_Issue> warnings,
   ) {
-    final plat       = platform.key;
-    final rawPlatform = rawApp?[plat] as YamlMap?;
-    final basePath   = 'app.$plat';
+    const plat = 'android';
+    const basePath = 'app.$plat';
 
-    if (platform.baseId == null) {
+    if (platform.defaults.id == null) {
       errors.add(_Issue(
         '$basePath.default',
         '"id" is required but not set.',
         fix: 'Add:  id: "com.example.myapp"  under  $basePath.default',
       ));
     }
-
     if (platform.flavors.isEmpty) {
       errors.add(_Issue(
         '$basePath.flavor',
@@ -149,80 +151,220 @@ class ValidateCommand extends Command<void> {
       ));
     }
 
-    // Signing credential warnings
-    final hasRelease = platform.defaultFirebaseRelease != null ||
-        platform.flavors.any((f) => f.firebaseRelease != null);
-    if (hasRelease) {
-      if (plat == 'android' && platform.signingKeyFile == null) {
-        warnings.add(_Issue(
-          '$basePath.default.credentials.signing',
-          '"key_file" is not set — release builds may fail to sign.',
-          fix: 'Add:  signing:\n          key_file: "keys/keystore.properties"',
-        ));
-      }
-      if (plat == 'ios' && platform.teamId == null) {
-        warnings.add(_Issue(
-          '$basePath.default.credentials.signing',
-          '"team_id" is not set — release builds may fail to sign.',
-          fix: 'Add:  signing:\n          team_id: "YOURTEAMID"',
-        ));
-      }
+    final hasRelease = platform.defaults.firebase != null ||
+        platform.defaults.buildTypes['release']?.firebase != null ||
+        platform.flavors.values.any((f) =>
+            f.firebase != null || f.buildTypes['release']?.firebase != null);
+    if (hasRelease && platform.defaults.credentials?.signing?.keyFile == null) {
+      warnings.add(_Issue(
+        '$basePath.default.credentials.signing',
+        '"key_file" is not set — release builds may fail to sign.',
+        fix: 'Add:  signing:\n          key_file: "keys/keystore.properties"',
+      ));
     }
 
-    // Default build_type checks
-    _checkFirebase('$basePath.default.build_types.release.firebase',
-        platform.defaultFirebaseRelease, plat, errors, warnings,
-        resolvedServiceAccount: AnnspecModel.resolveServiceAccount(platform, null, 'release'));
-    _checkFirebase('$basePath.default.build_types.debug.firebase',
-        platform.defaultFirebaseDebug,   plat, errors, warnings,
-        resolvedServiceAccount: AnnspecModel.resolveServiceAccount(platform, null, 'debug'));
+    for (final bt in const ['release', 'debug']) {
+      final resolved = core.AnnSpecResolver.resolveAndroidFlavor(
+          const core.AndroidFlavor(), platform.defaults, bt);
+      _checkFirebase('$basePath.default.build_types.$bt.firebase',
+          platform.defaults.buildTypes[bt]?.firebase ?? platform.defaults.firebase,
+          plat, errors, warnings,
+          resolvedServiceAccount: resolved.effectiveFirebase?.serviceAccount);
+    }
 
     final rawDefault = rawPlatform?['default'] as YamlMap?;
-    _checkBuildTypeFields('$basePath.default',
-        plat, rawDefault?['build_types'] as YamlMap?, errors);
+    _checkBuildTypeFields('$basePath.default', plat,
+        rawDefault?['build_types'] as YamlMap?, errors);
 
-    for (final flavor in platform.flavors) {
-      _validateFlavor(flavor, platform, rawPlatform, errors, warnings);
+    for (final entry in platform.flavors.entries) {
+      _validateAndroidFlavor(entry.key, entry.value, platform.defaults,
+          (rawPlatform?['flavor'] as YamlMap?)?[entry.key] as YamlMap?, errors, warnings);
     }
   }
 
-  // ── Flavor ─────────────────────────────────────────────────────────────────
+  void _validateAndroidFlavor(
+    String flv,
+    core.AndroidFlavor flavor,
+    core.AndroidDefault defaults,
+    YamlMap? rawFlavor,
+    List<_Issue> errors,
+    List<_Issue> warnings,
+  ) {
+    const plat = 'android';
+    final basePath = 'app.$plat.flavor.$flv';
 
-  void _validateFlavor(
-    AnnspecFlavor flavor,
-    AnnspecPlatform platform,
+    _checkCommonFlavorFields(basePath, flv, flavor.name, flavor.mainFile,
+        flavor.versionName, flavor.versionCode, flavor.id, flavor.idSuffix, errors, warnings);
+
+    for (final bt in const ['release', 'debug']) {
+      final resolved = core.AnnSpecResolver.resolveAndroidFlavor(flavor, defaults, bt);
+      _checkFirebase('$basePath.build_types.$bt.firebase',
+          flavor.buildTypes[bt]?.firebase ?? flavor.firebase,
+          plat, errors, warnings,
+          resolvedServiceAccount: resolved.effectiveFirebase?.serviceAccount);
+    }
+
+    if (flavor.stores?.appStore?.appleId != null) {
+      errors.add(_Issue(
+        '$basePath.stores.app_store',
+        '"app_store" is iOS-only — not valid under Android.',
+        fix: 'Remove the app_store block from  $basePath.stores',
+      ));
+    }
+
+    final priority = flavor.stores?.googlePlay?.priority;
+    if (priority != null && (priority < 1 || priority > 5)) {
+      errors.add(_Issue(
+        '$basePath.stores.google_play.priority',
+        '"priority" must be an integer from 1 to 5 (got: $priority).',
+        fix: '1 = background update (lowest urgency), '
+            '5 = immediate/forced update (highest urgency).',
+      ));
+    }
+
+    _checkBuildTypeFields(basePath, plat, rawFlavor?['build_types'] as YamlMap?, errors);
+  }
+
+  // ── iOS platform ────────────────────────────────────────────────────────────
+
+  void _validateIos(
+    core.IosPlatform platform,
     YamlMap? rawPlatform,
     List<_Issue> errors,
     List<_Issue> warnings,
   ) {
-    final plat     = platform.key;
-    final flv      = flavor.key;
-    final basePath = 'app.$plat.flavor.$flv';
-    final rawFlavor = (rawPlatform?['flavor'] as YamlMap?)?[flv] as YamlMap?;
+    const plat = 'ios';
+    const basePath = 'app.$plat';
 
-    // Required fields
-    if (flavor.name == null) {
+    if (platform.defaults.id == null) {
+      errors.add(_Issue(
+        '$basePath.default',
+        '"id" is required but not set.',
+        fix: 'Add:  id: "com.example.myapp"  under  $basePath.default',
+      ));
+    }
+    if (platform.flavors.isEmpty) {
+      errors.add(_Issue(
+        '$basePath.flavor',
+        'No flavors defined — at least one flavor is required.',
+        fix: 'Add a flavor block under  $basePath.flavor',
+      ));
+    }
+
+    final hasRelease = platform.defaults.firebase != null ||
+        platform.defaults.buildTypes['release']?.firebase != null ||
+        platform.flavors.values.any((f) =>
+            f.firebase != null || f.buildTypes['release']?.firebase != null);
+    if (hasRelease && platform.defaults.credentials?.signing?.teamId == null) {
+      warnings.add(_Issue(
+        '$basePath.default.credentials.signing',
+        '"team_id" is not set — release builds may fail to sign.',
+        fix: 'Add:  signing:\n          team_id: "YOURTEAMID"',
+      ));
+    }
+
+    for (final bt in const ['release', 'debug']) {
+      final resolved = core.AnnSpecResolver.resolveIosFlavor(
+          const core.IosFlavor(), platform.defaults, bt);
+      _checkFirebase('$basePath.default.build_types.$bt.firebase',
+          platform.defaults.buildTypes[bt]?.firebase ?? platform.defaults.firebase,
+          plat, errors, warnings,
+          resolvedServiceAccount: resolved.effectiveFirebase?.serviceAccount);
+    }
+
+    final rawDefault = rawPlatform?['default'] as YamlMap?;
+    _checkBuildTypeFields('$basePath.default', plat,
+        rawDefault?['build_types'] as YamlMap?, errors);
+
+    for (final entry in platform.flavors.entries) {
+      _validateIosFlavor(entry.key, entry.value, platform.defaults,
+          (rawPlatform?['flavor'] as YamlMap?)?[entry.key] as YamlMap?, errors, warnings);
+    }
+  }
+
+  void _validateIosFlavor(
+    String flv,
+    core.IosFlavor flavor,
+    core.IosDefault defaults,
+    YamlMap? rawFlavor,
+    List<_Issue> errors,
+    List<_Issue> warnings,
+  ) {
+    const plat = 'ios';
+    final basePath = 'app.$plat.flavor.$flv';
+
+    _checkCommonFlavorFields(basePath, flv, flavor.name, flavor.mainFile,
+        flavor.versionName, flavor.versionCode, flavor.id, flavor.idSuffix, errors, warnings);
+
+    for (final bt in const ['release', 'debug']) {
+      final resolved = core.AnnSpecResolver.resolveIosFlavor(flavor, defaults, bt);
+      _checkFirebase('$basePath.build_types.$bt.firebase',
+          flavor.buildTypes[bt]?.firebase ?? flavor.firebase,
+          plat, errors, warnings,
+          resolvedServiceAccount: resolved.effectiveFirebase?.serviceAccount);
+    }
+
+    if (flavor.stores?.googlePlay != null) {
+      errors.add(_Issue(
+        '$basePath.stores.google_play',
+        '"google_play" is Android-only — not valid under iOS.',
+        fix: 'Remove the google_play block from  $basePath.stores',
+      ));
+    }
+    if (flavor.stores?.samsungGalaxy?.appId != null) {
+      errors.add(_Issue(
+        '$basePath.stores.samsung_galaxy',
+        '"samsung_galaxy" is Android-only — not valid under iOS.',
+        fix: 'Remove the samsung_galaxy block from  $basePath.stores',
+      ));
+    }
+    if (flavor.stores?.amazon?.appId != null) {
+      errors.add(_Issue(
+        '$basePath.stores.amazon',
+        '"amazon" is Android-only — not valid under iOS.',
+        fix: 'Remove the amazon block from  $basePath.stores',
+      ));
+    }
+
+    _checkBuildTypeFields(basePath, plat, rawFlavor?['build_types'] as YamlMap?, errors);
+  }
+
+  // ── Shared flavor field checks ─────────────────────────────────────────────
+
+  void _checkCommonFlavorFields(
+    String basePath,
+    String flv,
+    String? name,
+    String? mainFile,
+    String? versionName,
+    int? versionCode,
+    String? id,
+    String idSuffix,
+    List<_Issue> errors,
+    List<_Issue> warnings,
+  ) {
+    if (name == null) {
       errors.add(_Issue(
         '$basePath.name',
         '"name" is required but not set.',
         fix: 'Add:  name: "My App ${_titleCase(flv)}"',
       ));
     }
-    if (flavor.mainFile == null) {
+    if (mainFile == null) {
       errors.add(_Issue(
         '$basePath.main_file',
         '"main_file" is required but not set.',
         fix: 'Add:  main_file: "lib/flavors/main_$flv.dart"',
       ));
     }
-    if (flavor.versionName == null) {
+    if (versionName == null) {
       errors.add(_Issue(
         '$basePath.version_name',
         '"version_name" is required but not set.',
         fix: 'Add:  version_name: "1.0.0"',
       ));
     }
-    if (flavor.versionCode == null) {
+    if (versionCode == null) {
       errors.add(_Issue(
         '$basePath.version_code',
         '"version_code" is required but not set.',
@@ -230,86 +372,30 @@ class ValidateCommand extends Command<void> {
       ));
     }
 
-    // id vs id_suffix mutual exclusion
-    if (flavor.id != null && flavor.idSuffix != null) {
+    final hasIdSuffix = idSuffix.isNotEmpty;
+    if (id != null && hasIdSuffix) {
       errors.add(_Issue(
-        '$basePath',
+        basePath,
         'Both "id" and "id_suffix" are set — use one, not both.',
         fix: 'Use "id" to override the full bundle ID, '
             'or "id_suffix" to append to default.id.  Remove one.',
       ));
     }
-    if (flavor.id == null && flavor.idSuffix == null) {
+    if (id == null && !hasIdSuffix) {
       warnings.add(_Issue(
-        '$basePath',
+        basePath,
         'Neither "id" nor "id_suffix" is set — this flavor will share the same bundle ID as default.',
         fix: 'Add:  id_suffix: ".$flv"  to make the ID unique, '
             'or  id: "com.example.$flv"  for a full override.',
       ));
     }
-
-    // Firebase checks
-    _checkFirebase('$basePath.build_types.release.firebase',
-        flavor.firebaseRelease, plat, errors, warnings,
-        resolvedServiceAccount: AnnspecModel.resolveServiceAccount(platform, flavor, 'release'));
-    _checkFirebase('$basePath.build_types.debug.firebase',
-        flavor.firebaseDebug,   plat, errors, warnings,
-        resolvedServiceAccount: AnnspecModel.resolveServiceAccount(platform, flavor, 'debug'));
-
-    // Wrong-platform store fields
-    if (plat == 'ios') {
-      if (flavor.googlePlayPriority != null)
-        errors.add(_Issue(
-          '$basePath.stores.google_play',
-          '"google_play" is Android-only — not valid under iOS.',
-          fix: 'Remove the google_play block from  $basePath.stores',
-        ));
-      if (flavor.samsungAppId != null)
-        errors.add(_Issue(
-          '$basePath.stores.samsung_galaxy',
-          '"samsung_galaxy" is Android-only — not valid under iOS.',
-          fix: 'Remove the samsung_galaxy block from  $basePath.stores',
-        ));
-      if (flavor.amazonAppId != null)
-        errors.add(_Issue(
-          '$basePath.stores.amazon',
-          '"amazon" is Android-only — not valid under iOS.',
-          fix: 'Remove the amazon block from  $basePath.stores',
-        ));
-    }
-    if (plat == 'android') {
-      if (flavor.appleId != null)
-        errors.add(_Issue(
-          '$basePath.stores.app_store',
-          '"app_store" is iOS-only — not valid under Android.',
-          fix: 'Remove the app_store block from  $basePath.stores',
-        ));
-    }
-
-    // google_play.priority range
-    if (flavor.googlePlayPriority != null) {
-      final priority = int.tryParse(flavor.googlePlayPriority!);
-      if (priority == null || priority < 1 || priority > 5) {
-        errors.add(_Issue(
-          '$basePath.stores.google_play.priority',
-          '"priority" must be an integer from 1 to 5 '
-              '(got: ${flavor.googlePlayPriority}).',
-          fix: '1 = background update (lowest urgency), '
-              '5 = immediate/forced update (highest urgency).',
-        ));
-      }
-    }
-
-    // Android-only build_type fields on other platforms
-    _checkBuildTypeFields(basePath, plat,
-        rawFlavor?['build_types'] as YamlMap?, errors);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   void _checkFirebase(
     String path,
-    AnnspecFirebase? firebase,
+    core.FirebaseConfig? firebase,
     String platformKey,
     List<_Issue> errors,
     List<_Issue> warnings, {
@@ -359,17 +445,34 @@ class ValidateCommand extends Command<void> {
   // ── Firebase integration gate ──────────────────────────────────────────────
 
   void _checkFirebaseIntegration(
-    AnnspecModel spec,
+    core.AnnSpec spec,
     List<_Issue> errors,
     List<_Issue> warnings,
   ) {
-    if (spec.integrations?.firebase != true) return;
+    if (spec.app.integrations?.firebase != true) return;
 
     // integrations.firebase: true but no firebase blocks found anywhere is likely a mistake.
-    final hasAny = spec.platforms.any((p) =>
-        p.defaultFirebaseRelease != null ||
-        p.defaultFirebaseDebug != null ||
-        p.flavors.any((f) => f.firebaseRelease != null || f.firebaseDebug != null));
+    bool platformHasFirebase(dynamic defaults, Map flavors) {
+      if (defaults.firebase != null) return true;
+      if (defaults.buildTypes['release']?.firebase != null) return true;
+      if (defaults.buildTypes['debug']?.firebase != null) return true;
+      for (final f in flavors.values) {
+        if (f.firebase != null) return true;
+        if (f.buildTypes['release']?.firebase != null) return true;
+        if (f.buildTypes['debug']?.firebase != null) return true;
+      }
+      return false;
+    }
+
+    final hasAny =
+        (spec.app.android != null &&
+            platformHasFirebase(spec.app.android!.defaults, spec.app.android!.flavors)) ||
+        (spec.app.ios != null &&
+            platformHasFirebase(spec.app.ios!.defaults, spec.app.ios!.flavors)) ||
+        (spec.app.web != null &&
+            platformHasFirebase(spec.app.web!.defaults, spec.app.web!.flavors)) ||
+        (spec.app.windows != null &&
+            platformHasFirebase(spec.app.windows!.defaults, spec.app.windows!.flavors));
 
     if (!hasAny) {
       warnings.add(_Issue(

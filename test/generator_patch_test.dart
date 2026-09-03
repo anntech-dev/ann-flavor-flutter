@@ -78,18 +78,19 @@ void main() {
     });
     tearDown(() => tempDir.deleteSync(recursive: true));
 
-    test('Podfile gets comment and both require lines', () async {
+    test('Podfile gets comment and the require line', () async {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
       expect(content, contains("# Added by ann_flutter_flavor — multi-flavor iOS build configuration"));
       expect(content, contains("require 'ann-flavor-cocoapods'"));
-      expect(content, contains("require 'annai-flutter-flavor'"));
-      // Comment must appear before both requires
-      final commentIdx  = content.indexOf('# Added by ann_flutter_flavor');
-      final require1Idx = content.indexOf("require 'ann-flavor-cocoapods'");
-      final require2Idx = content.indexOf("require 'annai-flutter-flavor'");
-      expect(require1Idx, greaterThan(commentIdx), reason: 'ann-flavor-cocoapods require must follow the comment');
-      expect(require2Idx, greaterThan(commentIdx), reason: 'annai-flutter-flavor require must follow the comment');
+      // 'annai-flutter-flavor' is an old, pre-rename alias that just forwards
+      // to the same code under a different name — deliberately no longer
+      // written into fresh Podfiles.
+      expect(content, isNot(contains("require 'annai-flutter-flavor'")));
+      // Comment must appear before the require
+      final commentIdx = content.indexOf('# Added by ann_flutter_flavor');
+      final requireIdx = content.indexOf("require 'ann-flavor-cocoapods'");
+      expect(requireIdx, greaterThan(commentIdx), reason: 'ann-flavor-cocoapods require must follow the comment');
     });
 
     test('Podfile is not patched twice on re-run', () async {
@@ -98,8 +99,46 @@ void main() {
       final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
       expect("require 'ann-flavor-cocoapods'".allMatches(content).length, 1,
           reason: 'ann-flavor-cocoapods require should appear exactly once');
-      expect("require 'annai-flutter-flavor'".allMatches(content).length, 1,
-          reason: 'annai-flutter-flavor require should appear exactly once');
+    });
+
+    // Regression coverage for ann-flavor-tooling#61: annai_ios_podfile_setup
+    // must be called from post_integrate, not post_install — post_install
+    // fires before CocoaPods has integrated/saved the user's Xcode project,
+    // so build phases it injects there are silently lost.
+    test('Podfile without the call gets a post_integrate hook added', () async {
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
+      expect(content, contains('post_integrate do |installer|'));
+      expect(content, contains('annai_ios_podfile_setup(installer)'));
+    });
+
+    test('post_integrate hook is not duplicated on re-run', () async {
+      await _runSync(tempDir);
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/ios/Podfile').readAsStringSync();
+      expect('annai_ios_podfile_setup'.allMatches(content).length, 1,
+          reason: 'annai_ios_podfile_setup should appear exactly once');
+      expect('post_integrate do'.allMatches(content).length, 1,
+          reason: 'post_integrate block should appear exactly once');
+    });
+
+    test('does not insert a second call when annai_ios_podfile_setup already exists anywhere (e.g. the pre-#61 post_install pattern)', () async {
+      // Simulates a project migrated by hand to the correct post_integrate
+      // hook, or one still using the old (broken but pre-existing) post_install
+      // placement — either way, sync must not add a duplicate call.
+      final podfile = File('${tempDir.path}/ios/Podfile');
+      podfile.writeAsStringSync(
+          "platform :ios, '12.0'\n\n"
+          "target 'Runner' do\nend\n\n"
+          "post_install do |installer|\n"
+          "  annai_ios_podfile_setup(installer)\n"
+          "end\n");
+      await _runSync(tempDir);
+      final content = podfile.readAsStringSync();
+      expect('annai_ios_podfile_setup'.allMatches(content).length, 1,
+          reason: 'existing call must not be duplicated');
+      expect(content, isNot(contains('post_integrate do')),
+          reason: 'no post_integrate block should be added when the call already exists elsewhere');
     });
   });
 
@@ -112,14 +151,14 @@ void main() {
     });
     tearDown(() => tempDir.deleteSync(recursive: true));
 
-    test('new Gemfile contains comment before ann-flavor-flutter gem', () async {
+    test('new Gemfile contains comment before ann-flavor-fastlane gem', () async {
       await _runSync(tempDir);
       final gemfile = File('${tempDir.path}/Gemfile');
       expect(gemfile.existsSync(), isTrue);
       final content = gemfile.readAsStringSync();
       expect(content, contains('# Added by ann_flutter_flavor — Fastlane integration'));
       final commentIdx = content.indexOf('# Added by ann_flutter_flavor — Fastlane integration');
-      final gemIdx     = content.indexOf("gem 'ann-flavor-flutter'");
+      final gemIdx     = content.indexOf("gem 'ann-flavor-fastlane'");
       expect(gemIdx, greaterThan(commentIdx),
           reason: 'Comment must appear before the gem line');
     });
@@ -130,24 +169,42 @@ void main() {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
       expect(content, contains('# Added by ann_flutter_flavor — Fastlane integration'));
-      expect(content, contains("gem 'ann-flavor-flutter'"));
+      expect(content, contains("gem 'ann-flavor-fastlane'"));
     });
 
     test('Gemfile is not patched twice on re-run', () async {
       await _runSync(tempDir);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
-      expect('ann-flavor-flutter'.allMatches(content).length, 1,
+      expect('ann-flavor-fastlane'.allMatches(content).length, 1,
           reason: 'gem line should appear exactly once');
     });
 
-    test('does not add ann-flavor-flutter when already present with double quotes', () async {
+    test('does not add ann-flavor-fastlane when already present with double quotes', () async {
       File('${tempDir.path}/Gemfile').writeAsStringSync(
-          'source "https://rubygems.org"\ngem "fastlane"\ngem "ann-flavor-flutter"\n');
+          'source "https://rubygems.org"\ngem "fastlane"\ngem "ann-flavor-fastlane"\n');
       await _runSync(tempDir);
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
-      expect('ann-flavor-flutter'.allMatches(content).length, 1,
+      expect('ann-flavor-fastlane'.allMatches(content).length, 1,
           reason: 'gem must not be duplicated when already present with double quotes');
+    });
+
+    // Plan 040 (STEP-02): FastlaneGenerator.generate must recognize the
+    // pre-rename gem name as "already present" too, so it doesn't append a
+    // second, differently-named line before sync_command.dart's
+    // _ensureFastlaneGemEntry gets a chance to migrate the old line in
+    // place -- without this, a project on the old name would end up with
+    // two Fastlane gem entries after one sync.
+    test('does not duplicate when the legacy pre-rename gem name is already present', () async {
+      File('${tempDir.path}/Gemfile').writeAsStringSync(
+          "source 'https://rubygems.org'\ngem 'fastlane'\ngem 'ann-flavor-flutter'\n");
+      await _runSync(tempDir);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      // sync_command.dart's migration rewrites the legacy line to the new
+      // name in the same run -- exactly one Fastlane gem entry total,
+      // referencing the new name, not two.
+      expect('ann-flavor-fastlane'.allMatches(content).length, 1);
+      expect(content, isNot(contains('ann-flavor-flutter')));
     });
   });
 

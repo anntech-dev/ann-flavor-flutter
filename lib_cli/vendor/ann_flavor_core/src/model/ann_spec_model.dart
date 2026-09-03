@@ -12,6 +12,27 @@ class AnnSpec {
     this.debugConfig = const DebugConfig(),
     this.tooling,
   });
+
+  /// Whether flavor [flavorKey] has an entry under `app.<platformKey>.flavor`
+  /// in the spec — i.e. whether this flavor actually targets that platform.
+  ///
+  /// [platformKey] is `'android'`, `'ios'`, `'web'`, or `'windows'` (any
+  /// other value returns `false`). This says nothing about whether the
+  /// platform itself is configured for the app at all — a platform absent
+  /// from `app` entirely (`app.<platformKey> == null`) also returns `false`
+  /// here, the same as a platform that exists but doesn't list this flavor.
+  /// Callers that need to distinguish those two cases (e.g. to decide
+  /// whether to throw a programming-error vs. return a benign "not
+  /// present") should check `app.<platformKey> == null` separately.
+  bool flavorExistsOn(String platformKey, String flavorKey) {
+    switch (platformKey) {
+      case 'android': return app.android?.flavors.containsKey(flavorKey) ?? false;
+      case 'ios':     return app.ios?.flavors.containsKey(flavorKey) ?? false;
+      case 'web':     return app.web?.flavors.containsKey(flavorKey) ?? false;
+      case 'windows': return app.windows?.flavors.containsKey(flavorKey) ?? false;
+      default:        return false;
+    }
+  }
 }
 
 // ─── Tooling (REQ-TOOL-00010 — top-level, non-cascading) ──────────────────────
@@ -176,6 +197,13 @@ class IosPlatform {
   });
 }
 
+class IosSdk {
+  final String? ios;
+  final String? swiftVersion;
+
+  const IosSdk({this.ios, this.swiftVersion});
+}
+
 class IosDefault {
   final String? id;
   final String? name;
@@ -189,6 +217,10 @@ class IosDefault {
   final Map<String, BuildTypeConfig> buildTypes;
   final CustomConfig custom;
   final DartDefines dartDefines;
+  final Map<String, String> env;
+  final InfoPlistValue? infoPlist;
+  final EntitlementsValue? entitlements;
+  final IosSdk? sdk;
 
   const IosDefault({
     this.id,
@@ -203,6 +235,10 @@ class IosDefault {
     this.buildTypes = const {},
     this.custom = const {},
     this.dartDefines = DartDefines.empty,
+    this.env = const {},
+    this.infoPlist,
+    this.entitlements,
+    this.sdk,
   });
 }
 
@@ -222,6 +258,9 @@ class IosFlavor {
   final Map<String, BuildTypeConfig> buildTypes;
   final CustomConfig custom;
   final DartDefines dartDefines;
+  final Map<String, String> env;
+  final InfoPlistValue? infoPlist;
+  final EntitlementsValue? entitlements;
 
   const IosFlavor({
     this.id,
@@ -239,6 +278,9 @@ class IosFlavor {
     this.buildTypes = const {},
     this.custom = const {},
     this.dartDefines = DartDefines.empty,
+    this.env = const {},
+    this.infoPlist,
+    this.entitlements,
   });
 }
 
@@ -428,6 +470,9 @@ class BuildTypeConfig {
   final String? ndkDebugSymbolLevel;
   final List<String> ndkAbiFilters;
   final DartDefines dartDefines;
+  final Map<String, String> env;
+  final InfoPlistValue? infoPlist;
+  final EntitlementsValue? entitlements;
 
   const BuildTypeConfig({
     this.idSuffix = '',
@@ -443,6 +488,9 @@ class BuildTypeConfig {
     this.ndkDebugSymbolLevel,
     this.ndkAbiFilters = const [],
     this.dartDefines = DartDefines.empty,
+    this.env = const {},
+    this.infoPlist,
+    this.entitlements,
   });
 }
 
@@ -458,6 +506,42 @@ class FirebaseConfig {
   final String? target;
 
   const FirebaseConfig({this.projectId, this.configFile, this.serviceAccount, this.target});
+}
+
+// ─── Info.plist raw overrides (iOS only; structurally valid on the shared
+// BuildTypeConfig like admob/custom, but semantically meaningful only for iOS
+// generators) ──────────────────────────────────────────────────────────────
+
+/// Either an inline map of raw Info.plist key -> value pairs ([values]), or a
+/// path to a standalone .yaml/.plist file carrying the same shape ([path]).
+/// Exactly one of the two is set. File-path resolution happens in the
+/// consuming plugin (ann-flavor-flutter), not here — the core only models
+/// which of the two forms was written in annspec.yaml.
+class InfoPlistValue {
+  final Map<String, dynamic>? values;
+  final String? path;
+
+  const InfoPlistValue.inline(Map<String, dynamic> this.values) : path = null;
+  const InfoPlistValue.filePath(String this.path) : values = null;
+}
+
+// ─── Entitlements raw overrides (iOS only; structurally valid on the shared
+// BuildTypeConfig like info_plist, but semantically meaningful only for iOS
+// generators) ───────────────────────────────────────────────────────────────
+
+/// Either an inline map of raw entitlement key -> value pairs ([values]), or
+/// a path to a standalone .yaml/.plist file carrying the same shape
+/// ([path]). Exactly one of the two is set. File-path resolution happens in
+/// the consuming plugin (ann-flavor-flutter), not here — the core only
+/// models which of the two forms was written in annspec.yaml. Same shape as
+/// [InfoPlistValue] deliberately — entitlements resolution mirrors
+/// info_plist's cascade and template-merge design exactly.
+class EntitlementsValue {
+  final Map<String, dynamic>? values;
+  final String? path;
+
+  const EntitlementsValue.inline(Map<String, dynamic> this.values) : path = null;
+  const EntitlementsValue.filePath(String this.path) : values = null;
 }
 
 class AuthConfig {
@@ -555,6 +639,9 @@ class ResolvedBuildOutput {
   final CloudflareConfig? effectiveCloudflare;
   final CustomConfig effectiveCustom;
   final DartDefines effectiveDartDefines;
+  final Map<String, String> effectiveEnv;
+  final InfoPlistValue? effectiveInfoPlist;
+  final EntitlementsValue? effectiveEntitlements;
 
   const ResolvedBuildOutput({
     required this.flavorName,
@@ -571,5 +658,8 @@ class ResolvedBuildOutput {
     this.effectiveCloudflare,
     this.effectiveCustom = const {},
     this.effectiveDartDefines = DartDefines.empty,
+    this.effectiveEnv = const {},
+    this.effectiveInfoPlist,
+    this.effectiveEntitlements,
   });
 }

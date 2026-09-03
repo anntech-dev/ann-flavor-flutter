@@ -245,6 +245,28 @@ void main() {
         expect(content, isNot(contains('ios/**/GoogleService-Info.plist')));
       }
     });
+
+    test('writes ios/ann/.gitignore ignoring any */merged/ directory when iOS is configured',
+        () async {
+      _writeValidSpec(tempDir);
+      await _runSync(tempDir, []);
+      final gitignore = File('${tempDir.path}/ios/ann/.gitignore');
+      expect(gitignore.existsSync(), isTrue, reason: 'ios/ann/.gitignore should be created');
+      final content = gitignore.readAsStringSync();
+      expect(content, contains('*/merged/'));
+    });
+
+    test('does not duplicate the */merged/ entry in ios/ann/.gitignore when already present',
+        () async {
+      _writeValidSpec(tempDir);
+      final annDir = Directory('${tempDir.path}/ios/ann')..createSync(recursive: true);
+      final gitignore = File('${annDir.path}/.gitignore');
+      gitignore.writeAsStringSync('*/merged/\n');
+      await _runSync(tempDir, []);
+      final content = gitignore.readAsStringSync();
+      final count = '*/merged/'.allMatches(content).length;
+      expect(count, equals(1), reason: 'merged entry must not be duplicated');
+    });
   });
 
   group('sync command — CocoaPods gem', () {
@@ -458,6 +480,22 @@ ${toolingBlock}app:
       expect(content, isNot(contains("'~>")),
           reason: 'no pessimistic constraint when cocoapods_plugin is absent');
     });
+
+    test('does not overwrite an existing local path: source with a version constraint',
+        () async {
+      writeIosSpec(tempDir, cocoapodsPlugin: '^0.1.17');
+      final gemfile = File('${tempDir.path}/Gemfile');
+      gemfile.writeAsStringSync(
+        "gem 'cocoapods'\n"
+        "gem 'ann-flavor-cocoapods', path: '../../plugins/ann-flavor-cocoapods'\n",
+      );
+      await _runSync(tempDir, []);
+      final content = gemfile.readAsStringSync();
+      expect(content, contains("path: '../../plugins/ann-flavor-cocoapods'"),
+          reason: 'a local path source must never be replaced by a registry version constraint');
+      expect(content, isNot(contains("'~> 0.1.17'")),
+          reason: 'no pessimistic constraint should be added alongside a path source');
+    });
   });
 
   group('sync command — tooling: Fastlane gem version', () {
@@ -495,9 +533,11 @@ ${toolingBlock}app:
       expect(gemfile.existsSync(), isTrue);
       final content = gemfile.readAsStringSync();
       // Gem name must be the real published RubyGems package name
-      // (ann-flavor-flutter), not fastlane-plugin-ann_fastlane_flavor — that
-      // name was never published and every bundle install failed against it.
-      expect(content, contains("gem 'ann-flavor-flutter', '~> 0.4.4'"),
+      // (ann-flavor-fastlane, plan 040 — renamed from the wrong
+      // "ann-flavor-flutter", which collided with the Dart package name),
+      // not fastlane-plugin-ann_fastlane_flavor — that name was never
+      // published and every bundle install failed against it.
+      expect(content, contains("gem 'ann-flavor-fastlane', '~> 0.4.4'"),
           reason: 'versioned Fastlane Gemfile entry should use pessimistic constraint');
     });
 
@@ -507,13 +547,14 @@ ${toolingBlock}app:
       final gemfile = File('${tempDir.path}/Gemfile');
       expect(gemfile.existsSync(), isTrue);
       final content = gemfile.readAsStringSync();
-      expect(content, contains("gem 'ann-flavor-flutter'"),
+      expect(content, contains("gem 'ann-flavor-fastlane'"),
           reason: 'Gemfile should still include fastlane plugin without version');
     });
 
-    test('legacy fastlane-plugin-ann_fastlane_flavor entry is migrated to ann-flavor-flutter',
+    test('legacy fastlane-plugin-ann_fastlane_flavor entry is migrated to ann-flavor-fastlane',
         () async {
-      // Simulates a Gemfile written by a pre-fix Sync Spec run.
+      // Simulates a Gemfile written by a pre-fix Sync Spec run (predates even
+      // the ann-flavor-flutter name).
       writeFastlaneSpec(tempDir, fastlanePlugin: '^0.4.4');
       File('${tempDir.path}/Gemfile').writeAsStringSync(
         "source 'https://rubygems.org'\n"
@@ -522,10 +563,82 @@ ${toolingBlock}app:
       );
       await _runSync(tempDir, []);
       final content = File('${tempDir.path}/Gemfile').readAsStringSync();
-      expect(content, contains("gem 'ann-flavor-flutter', '~> 0.4.4'"),
-          reason: 'the stale legacy gem line should be rewritten in place');
+      expect(content, contains("gem 'ann-flavor-fastlane', '~> 0.4.4'"),
+          reason: 'the stale legacy gem line should be rewritten in place, skipping the intermediate name entirely');
       expect(content, isNot(contains('fastlane-plugin-ann_fastlane_flavor')),
           reason: 'the legacy nonexistent gem name should not remain in the Gemfile');
+    });
+
+    // Plan 040 (STEP-02/05): the gem was renamed ann-flavor-flutter →
+    // ann-flavor-fastlane. A Gemfile written by any pre-plan-040 sync run
+    // must be migrated forward on the next sync, same as the older legacy
+    // name above.
+    test('legacy ann-flavor-flutter entry is migrated to ann-flavor-fastlane', () async {
+      writeFastlaneSpec(tempDir, fastlanePlugin: '^0.4.4');
+      File('${tempDir.path}/Gemfile').writeAsStringSync(
+        "source 'https://rubygems.org'\n"
+        "gem 'fastlane'\n"
+        "gem 'ann-flavor-flutter', '~> 0.4.10'\n",
+      );
+      await _runSync(tempDir, []);
+      final content = File('${tempDir.path}/Gemfile').readAsStringSync();
+      expect(content, contains("gem 'ann-flavor-fastlane', '~> 0.4.4'"),
+          reason: 'the stale pre-rename gem line should be rewritten in place');
+      expect(content, isNot(contains('ann-flavor-flutter')),
+          reason: 'the old gem name should not remain in the Gemfile');
+    });
+  });
+
+  group('sync command — app icon generation is not a sync step', () {
+    late Directory tempDir;
+
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('sync_no_icons_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    // Regression test: icon generation used to run unconditionally as part of
+    // sync (and therefore upgrade, which always runs sync afterward) for
+    // every iOS flavor with an icon: path — an expensive external process
+    // per flavor, with no dev_dependency pre-check unlike the dedicated
+    // "Generate App Icons" action. It's now exclusively triggered by that
+    // action. This spec has an icon: path but no flutter_launcher_icons
+    // dev_dependency (which would make icon generation fail loudly if it
+    // still ran) — sync must succeed and never attempt icon generation.
+    test('sync succeeds and does not print icon generation output', () async {
+      File('${tempDir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+app:
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test App"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+        icon: "assets/icon.png"
+''');
+      final result = await _runSync(tempDir, []);
+      expect(result.exitCode, 0,
+          reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
+      final stdout = result.stdout.toString();
+      expect(stdout, isNot(contains('[icon]')));
+      expect(stdout, isNot(contains('Generating iOS icon')));
     });
   });
 }

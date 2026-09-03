@@ -1,7 +1,7 @@
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
-import '../model/annspec_model.dart';
 
 const _labelW = 10;
 final _divider = '─' * 52;
@@ -22,7 +22,7 @@ class SummaryCommand extends Command<void> {
   Future<void> run() async {
     final projectRoot = argResults!['project'] as String;
 
-    AnnspecModel spec;
+    core.AnnSpec spec;
     try {
       spec = AnnspecReader.read(projectRoot);
     } catch (e) {
@@ -35,129 +35,132 @@ class SummaryCommand extends Command<void> {
     print(_divider);
     print('  ${p.join(projectRoot, 'annspec.yaml')}');
 
-    for (final platform in spec.platforms) {
+    if (spec.app.android != null) {
       print('');
       print('');
-      _printPlatform(platform);
+      final android = spec.app.android!;
+      _printPlatform(
+        'ANDROID',
+        android.flavors.keys.isEmpty ? [''] : android.flavors.keys,
+        buildTypeKeysFor: (flavorKey) => _mergedBuildTypeKeys(
+            android.defaults.buildTypes.keys, android.flavors[flavorKey]?.buildTypes.keys ?? const []),
+        resolve: (flavorKey, bt) => core.AnnSpecResolver.resolveAndroidFlavor(
+            android.flavors[flavorKey] ?? const core.AndroidFlavor(), android.defaults, bt),
+        stores: (flavorKey) => android.flavors[flavorKey]?.stores,
+        androidBt: (flavorKey, bt) =>
+            android.flavors[flavorKey]?.buildTypes[bt] ?? android.defaults.buildTypes[bt],
+      );
+    }
+    if (spec.app.ios != null) {
+      print('');
+      print('');
+      final ios = spec.app.ios!;
+      _printPlatform(
+        'IOS',
+        ios.flavors.keys.isEmpty ? [''] : ios.flavors.keys,
+        buildTypeKeysFor: (flavorKey) => _mergedBuildTypeKeys(
+            ios.defaults.buildTypes.keys, ios.flavors[flavorKey]?.buildTypes.keys ?? const []),
+        resolve: (flavorKey, bt) => core.AnnSpecResolver.resolveIosFlavor(
+            ios.flavors[flavorKey] ?? const core.IosFlavor(), ios.defaults, bt),
+        stores: (flavorKey) => ios.flavors[flavorKey]?.stores,
+      );
+    }
+    if (spec.app.web != null) {
+      print('');
+      print('');
+      final web = spec.app.web!;
+      _printPlatform(
+        'WEB',
+        web.flavors.keys.isEmpty ? [''] : web.flavors.keys,
+        buildTypeKeysFor: (flavorKey) => _mergedBuildTypeKeys(
+            web.defaults.buildTypes.keys, web.flavors[flavorKey]?.buildTypes.keys ?? const []),
+        resolve: (flavorKey, bt) => core.AnnSpecResolver.resolveWebFlavor(
+            web.flavors[flavorKey] ?? const core.WebFlavor(), web.defaults, bt),
+        stores: (flavorKey) => null,
+      );
+    }
+    if (spec.app.windows != null) {
+      print('');
+      print('');
+      final windows = spec.app.windows!;
+      _printPlatform(
+        'WINDOWS',
+        windows.flavors.keys.isEmpty ? [''] : windows.flavors.keys,
+        buildTypeKeysFor: (flavorKey) => _mergedBuildTypeKeys(
+            windows.defaults.buildTypes.keys, windows.flavors[flavorKey]?.buildTypes.keys ?? const []),
+        resolve: (flavorKey, bt) => core.AnnSpecResolver.resolveWindowsFlavor(
+            windows.flavors[flavorKey] ?? const core.WindowsFlavor(), windows.defaults, bt),
+        stores: (flavorKey) => null,
+      );
     }
     print('');
   }
 
+  /// release/debug always shown; any other configured build type (e.g.
+  /// profile) shown too, in declaration order — matches the original's
+  /// "always debug+release, plus whatever's actually configured" behavior.
+  List<String> _mergedBuildTypeKeys(Iterable<String> defaultKeys, Iterable<String> flavorKeys) {
+    final all = <String>{'release', 'debug', ...defaultKeys, ...flavorKeys};
+    final ordered = <String>['release', 'debug'];
+    for (final k in all) {
+      if (k != 'release' && k != 'debug') ordered.add(k);
+    }
+    return ordered;
+  }
+
   // ── Platform ───────────────────────────────────────────────────────────────
 
-  void _printPlatform(AnnspecPlatform plat) {
-    print(plat.key.toUpperCase());
+  void _printPlatform(
+    String label,
+    Iterable<String> flavorKeys, {
+    required List<String> Function(String flavorKey) buildTypeKeysFor,
+    required core.ResolvedBuildOutput Function(String flavorKey, String buildType) resolve,
+    required core.FlavorStores? Function(String flavorKey) stores,
+    core.BuildTypeConfig? Function(String flavorKey, String buildType)? androidBt,
+  }) {
+    print(label);
 
-    if (plat.flavors.isEmpty) {
-      _printDefaultBuildTypes(plat);
-    } else {
-      for (final flavor in plat.flavors) {
-        print('');
-        _printFlavor(flavor, plat);
+    final showHeader = flavorKeys.length > 1 || flavorKeys.first.isNotEmpty;
+    for (final flavorKey in flavorKeys) {
+      if (showHeader) print('');
+      _printFlavor(flavorKey, buildTypeKeysFor(flavorKey), resolve, stores,
+          showHeader: showHeader, androidBt: androidBt);
+    }
+  }
+
+  void _printFlavor(
+    String flavorKey,
+    List<String> buildTypeKeys,
+    core.ResolvedBuildOutput Function(String flavorKey, String buildType) resolve,
+    core.FlavorStores? Function(String flavorKey) stores, {
+    required bool showHeader,
+    core.BuildTypeConfig? Function(String flavorKey, String buildType)? androidBt,
+  }) {
+    if (showHeader) {
+      print('  ── $flavorKey $_divider'.substring(0, _divider.length + 5));
+    }
+
+    for (final bt in buildTypeKeys) {
+      final r = resolve(flavorKey, bt);
+      print('');
+      print('  $bt');
+
+      if (r.effectiveId.isNotEmpty) _row('id', r.effectiveId);
+      if (r.effectiveName.isNotEmpty) _row('name', r.effectiveName);
+      if (r.effectiveVersionName.isNotEmpty) {
+        _row('version', _versionStr(r.effectiveVersionName, r.effectiveVersionCode));
       }
-    }
-  }
 
-  // ── No-flavor case: show default resolved per build type ───────────────────
+      _printFirebase(r.effectiveFirebase);
+      _printAuth(r.effectiveAuth);
 
-  void _printDefaultBuildTypes(AnnspecPlatform plat) {
-    final buildTypeKeys = _allBuildTypeKeys(
-      plat.defaultBuildTypes.keys,
-      hasFirebaseRelease: plat.defaultFirebaseRelease != null,
-      hasFirebaseDebug:   plat.defaultFirebaseDebug != null,
-    );
+      if (r.effectiveGmsAdsId != null) _row('admob', r.effectiveGmsAdsId!);
 
-    for (final bt in buildTypeKeys) {
-      final btCfg = plat.defaultBuildTypes[bt];
-      print('');
-      print('  $bt');
+      if (showHeader) _printStores(stores(flavorKey));
 
-      // id
-      final id = (plat.baseId ?? '') + (btCfg?.idSuffix ?? '');
-      if (id.isNotEmpty) _row('id', id);
+      _printCustom(r.effectiveCustom);
 
-      // name
-      final name = (plat.baseName ?? '') + (btCfg?.nameSuffix ?? '');
-      if (name.isNotEmpty) _row('name', name);
-
-      // version (same across build types)
-      if (plat.defaultVersionName != null)
-        _row('version', _versionStr(plat.defaultVersionName, plat.defaultVersionCode));
-
-      // firebase
-      final fb = bt == 'release' ? plat.defaultFirebaseRelease : plat.defaultFirebaseDebug;
-      _printFirebase(fb);
-
-      // auth
-      final auth = bt == 'release' ? plat.defaultAuthRelease : plat.defaultAuthDebug;
-      _printAuth(auth);
-
-      // admob
-      final admob = btCfg?.gmsAdsId ?? plat.defaultGmsAdsId;
-      if (admob != null) _row('admob', admob);
-
-      // android-only build type fields
-      _printAndroidBtFields(btCfg);
-    }
-  }
-
-  // ── Flavor case ────────────────────────────────────────────────────────────
-
-  void _printFlavor(AnnspecFlavor f, AnnspecPlatform plat) {
-    print('  ── ${f.key} $_divider'.substring(0, _divider.length + 5));
-
-    final buildTypeKeys = _allBuildTypeKeys(
-      f.buildTypes.keys,
-      hasFirebaseRelease: (f.firebaseRelease ?? plat.defaultFirebaseRelease) != null,
-      hasFirebaseDebug:   (f.firebaseDebug   ?? plat.defaultFirebaseDebug)   != null,
-    );
-
-    for (final bt in buildTypeKeys) {
-      final btCfg = f.buildTypes[bt];
-      print('');
-      print('  $bt');
-
-      // id — baseId + flavor.idSuffix + buildType.idSuffix
-      final baseId = f.id ?? (plat.baseId ?? '');
-      final id = f.id != null
-          ? baseId + (btCfg?.idSuffix ?? '')
-          : baseId + (f.idSuffix ?? '') + (btCfg?.idSuffix ?? '');
-      if (id.isNotEmpty) _row('id', id);
-
-      // name — (flavor.name ?? default.name) + buildType.nameSuffix
-      final baseName = f.name ?? plat.baseName ?? '';
-      final name = baseName + (btCfg?.nameSuffix ?? '');
-      if (name.isNotEmpty) _row('name', name);
-
-      // version — flavor overrides default, same across build types
-      final vn = f.versionName ?? plat.defaultVersionName;
-      final vc = f.versionCode ?? plat.defaultVersionCode;
-      if (vn != null) _row('version', _versionStr(vn, vc));
-
-      // firebase — flavor build_type → default build_type
-      final fb = bt == 'release'
-          ? (f.firebaseRelease ?? plat.defaultFirebaseRelease)
-          : (f.firebaseDebug   ?? plat.defaultFirebaseDebug);
-      _printFirebase(fb);
-
-      // auth — same cascade
-      final auth = bt == 'release'
-          ? (f.authRelease ?? plat.defaultAuthRelease)
-          : (f.authDebug   ?? plat.defaultAuthDebug);
-      _printAuth(auth);
-
-      // admob — buildType.admob → flavor.admob → default.admob
-      final admob = btCfg?.gmsAdsId ?? f.gmsAdsId ?? plat.defaultGmsAdsId;
-      if (admob != null) _row('admob', admob);
-
-      // stores (not build-type-specific)
-      _printStores(f);
-
-      // custom — already fully resolved per build type
-      _printCustom(f.customByBuildType[bt] ?? {});
-
-      // android-only build type fields
-      _printAndroidBtFields(btCfg);
+      _printAndroidBtFields(androidBt?.call(flavorKey, bt));
     }
   }
 
@@ -166,24 +169,33 @@ class SummaryCommand extends Command<void> {
   String _versionStr(String? name, int? code) =>
       code != null ? '$name ($code)' : name ?? '';
 
-  void _printFirebase(AnnspecFirebase? fb) {
+  void _printFirebase(core.FirebaseConfig? fb) {
     if (fb == null) return;
     if (fb.configFile != null) _row('firebase', 'config_file → ${fb.configFile}');
     if (fb.projectId != null) _row('firebase', 'project → ${fb.projectId}');
   }
 
-  void _printAuth(AnnspecAuth? auth) {
+  void _printAuth(core.AuthConfig? auth) {
     if (auth == null) return;
     if (auth.clientId != null)         _row('auth', 'clientId          ${auth.clientId}');
     if (auth.reversedClientId != null) _cont('     reversedClientId  ${auth.reversedClientId}');
   }
 
-  void _printStores(AnnspecFlavor f) {
+  void _printStores(core.FlavorStores? stores) {
+    if (stores == null) return;
     final lines = <String>[];
-    if (f.googlePlayPriority != null) lines.add('google_play    priority ${f.googlePlayPriority}');
-    if (f.samsungAppId != null)       lines.add('samsung_galaxy app_id   ${f.samsungAppId}');
-    if (f.amazonAppId != null)        lines.add('amazon         app_id   ${f.amazonAppId}');
-    if (f.appleId != null)            lines.add('app_store      apple_id ${f.appleId}');
+    if (stores.googlePlay?.priority != null) {
+      lines.add('google_play    priority ${stores.googlePlay!.priority}');
+    }
+    if (stores.samsungGalaxy?.appId != null) {
+      lines.add('samsung_galaxy app_id   ${stores.samsungGalaxy!.appId}');
+    }
+    if (stores.amazon?.appId != null) {
+      lines.add('amazon         app_id   ${stores.amazon!.appId}');
+    }
+    if (stores.appStore?.appleId != null) {
+      lines.add('app_store      apple_id ${stores.appStore!.appleId}');
+    }
     if (lines.isEmpty) return;
     _row('stores', lines.first);
     for (final l in lines.skip(1)) _cont(l);
@@ -204,38 +216,13 @@ class SummaryCommand extends Command<void> {
     }
   }
 
-  void _printAndroidBtFields(AnnspecBuildTypeConfig? btCfg) {
+  void _printAndroidBtFields(core.BuildTypeConfig? btCfg) {
     if (btCfg == null) return;
-    if (btCfg.minifyEnabled != null)
+    if (btCfg.minifyEnabled != null) {
       _row('minify', '${btCfg.minifyEnabled}  shrink: ${btCfg.shrinkResources ?? false}');
-    if (btCfg.ndkVersion != null)
-      _row('ndk', btCfg.ndkVersion!);
-    if (btCfg.ndkAbiFilters.isNotEmpty)
-      _row('abi', btCfg.ndkAbiFilters.join(', '));
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  /// Returns an ordered, deduplicated list of build type keys to display.
-  /// Always puts release before debug; appends any others alphabetically.
-  List<String> _allBuildTypeKeys(
-    Iterable<String> fromBuildTypes, {
-    bool hasFirebaseRelease = false,
-    bool hasFirebaseDebug   = false,
-  }) {
-    final all = <String>{};
-    if (hasFirebaseRelease) all.add('release');
-    if (hasFirebaseDebug)   all.add('debug');
-    all.addAll(fromBuildTypes);
-    if (all.isEmpty) { all.add('release'); all.add('debug'); }
-
-    final ordered = <String>[];
-    if (all.contains('release')) ordered.add('release');
-    if (all.contains('debug'))   ordered.add('debug');
-    for (final k in all) {
-      if (k != 'release' && k != 'debug') ordered.add(k);
     }
-    return ordered;
+    if (btCfg.ndkVersion != null) _row('ndk', btCfg.ndkVersion!);
+    if (btCfg.ndkAbiFilters.isNotEmpty) _row('abi', btCfg.ndkAbiFilters.join(', '));
   }
 
   // ── Print helpers ──────────────────────────────────────────────────────────

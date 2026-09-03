@@ -36,7 +36,15 @@ class _Nested {
 
 /// Fields whose value is a free-form map (arbitrary user-declared keys are data, not
 /// schema) — exempted from unknown-key checking entirely, at any level.
-const _freeFormFields = {'custom', 'dart_defines'};
+///
+/// info_plist and entitlements are additionally union types (an inline map OR
+/// a plain file-path string), so even when their value IS a map, its keys are
+/// raw Info.plist/entitlement keys the user controls, never our own schema
+/// fields — same free-form treatment as custom/dart_defines.
+///
+/// env is a flat string map of arbitrary, user-declared native build-setting
+/// keys (e.g. REVERSED_CLIENT_ID) — same free-form treatment.
+const _freeFormFields = {'custom', 'dart_defines', 'env', 'info_plist', 'entitlements'};
 
 const _schema = <String, _ClassSchema>{
   'AnnSpec': _ClassSchema({
@@ -138,6 +146,14 @@ const _schema = <String, _ClassSchema>{
     'build_types': _Nested.map('BuildTypeConfig'),
     'custom': null,
     'dart_defines': null,
+    'env': null,
+    'info_plist': null,
+    'entitlements': null,
+    'sdk': _Nested.object('IosSdk'),
+  }),
+  'IosSdk': _ClassSchema({
+    'ios': null,
+    'swift_version': null,
   }),
   'IosFlavor': _ClassSchema({
     'id': null,
@@ -155,6 +171,9 @@ const _schema = <String, _ClassSchema>{
     'build_types': _Nested.map('BuildTypeConfig'),
     'custom': null,
     'dart_defines': null,
+    'env': null,
+    'info_plist': null,
+    'entitlements': null,
   }),
   'IosCredentials': _ClassSchema({
     'signing': _Nested.object('IosSigning'),
@@ -248,6 +267,9 @@ const _schema = <String, _ClassSchema>{
     'ndkDebugSymbolLevel': null,
     'ndkAbiFilters': null,
     'dart_defines': null,
+    'env': null,
+    'info_plist': null,
+    'entitlements': null,
   }),
   'FirebaseConfig': _ClassSchema({
     'project_id': null,
