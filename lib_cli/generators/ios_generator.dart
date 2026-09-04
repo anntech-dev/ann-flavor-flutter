@@ -56,6 +56,7 @@ class IosGenerator {
     _ensureXcconfigBackedKeys(iosDir, hasAdmob);
     _generateInfoPlists(projectRoot, iosDir, annDir, iosPlatform);
     _generateEntitlements(projectRoot, iosDir, annDir, iosPlatform);
+    _generateExportOptions(projectRoot, annDir, iosPlatform);
   }
 
   // Fixes a real pod-install failure that happens during CocoaPods' own
@@ -614,6 +615,94 @@ class IosGenerator {
       return PlistCodec.decode(content);
     }
     print('  ⚠ Unsupported entitlements file extension: $path — expected .yaml/.yml/.plist. Skipping.');
+    return {};
+  }
+
+  // ── exportOptions.plist (plan 042) ──────────────────────────────────────────
+
+  /// Generates one `ExportOptions/<flavor>-<buildType>.plist` per flavor ×
+  /// build type — consumed only by `xcodebuild -exportArchive` /
+  /// `flutter build ipa --export-options-plist=...` at export time, never
+  /// during the Xcode build itself, so (unlike Info.plist/entitlements) there
+  /// is no build-setting wiring on the ann-flavor-cocoapods side and no
+  /// plugin-contribution layer — a plugin has no reason to influence how its
+  /// consumer's archive gets exported.
+  ///
+  /// Two layers, merged with the override winning key-for-key:
+  ///   1. Auto-derived base layer — `teamID` from `credentials.signing.team_id`
+  ///      (the same field that already drives code signing elsewhere; not
+  ///      duplicated into export_options unless the user explicitly wants a
+  ///      different value there) and a guessed `provisioningProfiles` entry
+  ///      for the flavor's resolved bundle ID, following the
+  ///      "<bundle id> AppStore" naming convention the fleet's previous
+  ///      hand-maintained exportOptions.plist already used.
+  ///   2. `export_options:` cascade (annspec.yaml) — a fully opaque map, any
+  ///      key (including ones Apple hasn't invented yet) passes straight
+  ///      through. Always written, unlike Info.plist/entitlements' opt-in
+  ///      rule, since the base layer alone is enough for a working plist and
+  ///      every release build needs one.
+  static void _generateExportOptions(
+    String projectRoot,
+    Directory annDir,
+    core.IosPlatform platform,
+  ) {
+    final exportOptionsDir = Directory(p.join(annDir.path, 'ExportOptions'));
+    // Delete-and-regenerate, same rationale as xcconfig/Info.plist above.
+    if (exportOptionsDir.existsSync()) exportOptionsDir.deleteSync(recursive: true);
+    exportOptionsDir.createSync(recursive: true);
+
+    for (final entry in platform.flavors.entries) {
+      final flavorKey = entry.key;
+      final flavor = entry.value;
+
+      for (final bt in _buildTypeKeys(platform, flavor)) {
+        final resolved = core.AnnSpecResolver.resolveIosFlavor(flavor, platform.defaults, bt);
+        final teamId = flavor.credentials?.signing?.teamId ?? platform.defaults.credentials?.signing?.teamId;
+
+        final base = <String, dynamic>{
+          if (teamId != null) 'teamID': teamId,
+          'provisioningProfiles': {
+            resolved.effectiveId: '${resolved.effectiveId} AppStore',
+          },
+        };
+
+        final levels = core.IosResolution.exportOptionsLevels(platform, flavorKey, bt);
+        final resolvedLevels = levels
+            .map((level) => level == null ? null : _resolveExportOptionsLevel(projectRoot, level))
+            .toList();
+        final override = core.IosResolution.mergeExportOptions(resolvedLevels);
+
+        final merged = {...base, ...override};
+
+        final fileName = '$flavorKey-$bt.plist';
+        final outFile = File(p.join(exportOptionsDir.path, fileName));
+        outFile.writeAsStringSync(PlistCodec.encode(merged));
+        print('  ✓ Generated ios/ann/ExportOptions/$fileName');
+      }
+    }
+  }
+
+  /// Resolves one raw `export_options` level to a `Map<String, dynamic>` —
+  /// same rules as `_resolveEntitlementsLevel`/`_resolveLevel`.
+  static Map<String, dynamic> _resolveExportOptionsLevel(String projectRoot, core.ExportOptionsValue level) {
+    if (level.values != null) return level.values!;
+
+    final path = level.path!;
+    final file = File(p.isAbsolute(path) ? path : p.join(projectRoot, path));
+    if (!file.existsSync()) {
+      print('  ⚠ export_options file not found: ${file.path} — skipping this level.');
+      return {};
+    }
+
+    final content = file.readAsStringSync();
+    if (path.endsWith('.yaml') || path.endsWith('.yml')) {
+      final doc = loadYaml(content);
+      return Map<String, dynamic>.from(doc as Map);
+    }
+    if (path.endsWith('.plist')) {
+      return PlistCodec.decode(content);
+    }
+    print('  ⚠ Unsupported export_options file extension: $path — expected .yaml/.yml/.plist. Skipping.');
     return {};
   }
 

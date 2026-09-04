@@ -713,6 +713,121 @@ app:
     });
   });
 
+  group('ios_generator — Export Options generation (plan 042)', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('ios_export_options_test_');
+    });
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    test('always generates one <flavor>-<buildType>.plist per flavor/build-type, even with no export_options: anywhere', () async {
+      _writeSpec(tempDir);
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      for (final bt in ['debug', 'release']) {
+        final generated = File('${tempDir.path}/ios/ann/ExportOptions/app-$bt.plist');
+        expect(generated.existsSync(), isTrue, reason: 'expected app-$bt.plist to always be generated');
+      }
+    });
+
+    test('auto-derived base layer: teamID from credentials.signing.team_id, provisioningProfiles guessed from resolved bundle id', () async {
+      _writeSpec(tempDir, extraIos: '''
+      credentials:
+        signing:
+          team_id: "ABCDE12345"
+''');
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final content = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      expect(content, contains('<key>teamID</key>'));
+      expect(content, contains('<string>ABCDE12345</string>'));
+      expect(content, contains('<key>provisioningProfiles</key>'));
+      expect(content, contains('<key>com.example.test.app</key>'));
+      expect(content, contains('<string>com.example.test.app AppStore</string>'));
+    });
+
+    test('no credentials.signing.team_id anywhere — teamID key omitted entirely, not empty', () async {
+      _writeSpec(tempDir);
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final content = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      expect(content, isNot(contains('<key>teamID</key>')));
+    });
+
+    test('export_options: override wins over the auto-derived base layer key-for-key', () async {
+      _writeSpec(tempDir, extraIos: '''
+      credentials:
+        signing:
+          team_id: "ABCDE12345"
+      export_options:
+        provisioningProfiles:
+          com.example.test.app: "Custom Profile Name"
+''');
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final content = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      // Override wins for provisioningProfiles...
+      expect(content, contains('<string>Custom Profile Name</string>'));
+      expect(content, isNot(contains('<string>com.example.test.app AppStore</string>')));
+      // ...but teamID from the base layer survives untouched, since the
+      // override never set it.
+      expect(content, contains('<string>ABCDE12345</string>'));
+    });
+
+    test('export_options: net-new key not in the base layer passes straight through', () async {
+      _writeSpec(tempDir, extraIos: '''
+      export_options:
+        stripSwiftSymbols: true
+        method: app-store-connect
+''');
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final content = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      expect(content, contains('<key>stripSwiftSymbols</key>'));
+      expect(content, contains('<key>method</key>'));
+      expect(content, contains('<string>app-store-connect</string>'));
+      // Base layer's own key still present alongside the net-new ones.
+      expect(content, contains('<key>provisioningProfiles</key>'));
+    });
+
+    test('a build_types.debug-scoped export_options: override only affects the debug file, not release', () async {
+      _writeSpec(tempDir, extraIos: '''
+      export_options:
+        method: app-store-connect
+      build_types:
+        debug:
+          export_options:
+            method: development
+''');
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final debugContent = File('${tempDir.path}/ios/ann/ExportOptions/app-debug.plist').readAsStringSync();
+      final releaseContent = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      expect(debugContent, contains('<string>development</string>'));
+      expect(releaseContent, contains('<string>app-store-connect</string>'));
+    });
+
+    test('export_options file-path reference (.yaml) is read and merged into the generated plist', () async {
+      File('${tempDir.path}/shared-export-options.yaml').writeAsStringSync(
+          'stripSwiftSymbols: true\n');
+      _writeSpec(tempDir, extraIos: '''
+      export_options: "shared-export-options.yaml"
+''');
+      _writeIosProject(tempDir);
+      await _runSync(tempDir);
+
+      final content = File('${tempDir.path}/ios/ann/ExportOptions/app-release.plist').readAsStringSync();
+      expect(content, contains('<key>stripSwiftSymbols</key>'));
+    });
+  });
+
   group('ios_generator — plugin-contributed Info.plist/entitlements (plan 041)', () {
     late Directory tempDir;
 

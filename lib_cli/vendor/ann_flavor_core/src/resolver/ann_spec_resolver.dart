@@ -172,6 +172,11 @@ class AnnSpecResolver {
           ?? flavor.entitlements
           ?? defaults.buildTypes[buildType]?.entitlements
           ?? defaults.entitlements,
+      // Same whole-value most-specific-wins rule as effectiveInfoPlist above.
+      effectiveExportOptions: flavor.buildTypes[buildType]?.exportOptions
+          ?? flavor.exportOptions
+          ?? defaults.buildTypes[buildType]?.exportOptions
+          ?? defaults.exportOptions,
     );
   }
 

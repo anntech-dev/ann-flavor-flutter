@@ -146,6 +146,7 @@ class AnnSpecParser {
     env:         _parseEnv(_map(m, 'env')),
     infoPlist:   _parseInfoPlist(m['info_plist']),
     entitlements: _parseEntitlements(m['entitlements']),
+    exportOptions: _parseExportOptions(m['export_options']),
     sdk:         m.containsKey('sdk') ? _parseIosSdk(_map(m, 'sdk')) : null,
   );
 
@@ -173,6 +174,7 @@ class AnnSpecParser {
     env:         _parseEnv(_map(m, 'env')),
     infoPlist:   _parseInfoPlist(m['info_plist']),
     entitlements: _parseEntitlements(m['entitlements']),
+    exportOptions: _parseExportOptions(m['export_options']),
   );
 
   // Branches on the RAW value's runtime type — must run before any _map()
@@ -195,16 +197,21 @@ class AnnSpecParser {
     return null;
   }
 
+  // Same branching rules as _parseInfoPlist — see its comment.
+  static ExportOptionsValue? _parseExportOptions(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return ExportOptionsValue.filePath(raw);
+    if (raw is Map) return ExportOptionsValue.inline(Map<String, dynamic>.from(raw));
+    return null;
+  }
+
   static IosCredentials _parseIosCredentials(Map<String, dynamic> m) => IosCredentials(
     signing:  m.containsKey('signing')
                 ? IosSigning(teamId: _map(m, 'signing')['team_id'] as String?)
                 : null,
     appStore: m.containsKey('app_store')
                 ? AppStoreCredentials(
-                    apiKey:                          _map(m, 'app_store')['api_key'] as String?,
-                    exportOptionsPlist:              _map(m, 'app_store')['export_options_plist'] as String?,
-                    exportOptionsTeamId:             _map(m, 'app_store')['export_options_team_id'] as String?,
-                    exportOptionsSigningCertificate: _map(m, 'app_store')['export_options_signing_certificate'] as String?,
+                    apiKey: _map(m, 'app_store')['api_key'] as String?,
                   )
                 : null,
   );
@@ -360,6 +367,7 @@ class AnnSpecParser {
         env:                    _parseEnv(_map(vm, 'env')),
         infoPlist:              _parseInfoPlist(vm['info_plist']),
         entitlements:           _parseEntitlements(vm['entitlements']),
+        exportOptions:          _parseExportOptions(vm['export_options']),
       ));
     });
 

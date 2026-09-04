@@ -220,6 +220,7 @@ class IosDefault {
   final Map<String, String> env;
   final InfoPlistValue? infoPlist;
   final EntitlementsValue? entitlements;
+  final ExportOptionsValue? exportOptions;
   final IosSdk? sdk;
 
   const IosDefault({
@@ -238,6 +239,7 @@ class IosDefault {
     this.env = const {},
     this.infoPlist,
     this.entitlements,
+    this.exportOptions,
     this.sdk,
   });
 }
@@ -261,6 +263,7 @@ class IosFlavor {
   final Map<String, String> env;
   final InfoPlistValue? infoPlist;
   final EntitlementsValue? entitlements;
+  final ExportOptionsValue? exportOptions;
 
   const IosFlavor({
     this.id,
@@ -281,6 +284,7 @@ class IosFlavor {
     this.env = const {},
     this.infoPlist,
     this.entitlements,
+    this.exportOptions,
   });
 }
 
@@ -298,16 +302,8 @@ class IosSigning {
 
 class AppStoreCredentials {
   final String? apiKey;
-  final String? exportOptionsPlist;
-  final String? exportOptionsTeamId;
-  final String? exportOptionsSigningCertificate;
 
-  const AppStoreCredentials({
-    this.apiKey,
-    this.exportOptionsPlist,
-    this.exportOptionsTeamId,
-    this.exportOptionsSigningCertificate,
-  });
+  const AppStoreCredentials({this.apiKey});
 }
 
 // ─── Web ─────────────────────────────────────────────────────────────────────
@@ -473,6 +469,7 @@ class BuildTypeConfig {
   final Map<String, String> env;
   final InfoPlistValue? infoPlist;
   final EntitlementsValue? entitlements;
+  final ExportOptionsValue? exportOptions;
 
   const BuildTypeConfig({
     this.idSuffix = '',
@@ -491,6 +488,7 @@ class BuildTypeConfig {
     this.env = const {},
     this.infoPlist,
     this.entitlements,
+    this.exportOptions,
   });
 }
 
@@ -542,6 +540,25 @@ class EntitlementsValue {
 
   const EntitlementsValue.inline(Map<String, dynamic> this.values) : path = null;
   const EntitlementsValue.filePath(String this.path) : values = null;
+}
+
+// ─── Export options raw overrides (iOS only; structurally valid on the shared
+// BuildTypeConfig like info_plist/entitlements, but semantically meaningful
+// only for iOS Fastlane consumers) ────────────────────────────────────────────
+
+/// Either an inline map of raw exportOptions.plist key -> value pairs
+/// ([values]), or a path to a standalone .yaml/.plist file carrying the same
+/// shape ([path]). Exactly one of the two is set. This is a fully opaque
+/// override layer merged on top of a generator-computed base layer (team ID,
+/// provisioning profile) — the core has no knowledge of which Apple keys are
+/// valid, matching info_plist/entitlements' treatment of free-form plist
+/// content. Same shape as [EntitlementsValue] deliberately.
+class ExportOptionsValue {
+  final Map<String, dynamic>? values;
+  final String? path;
+
+  const ExportOptionsValue.inline(Map<String, dynamic> this.values) : path = null;
+  const ExportOptionsValue.filePath(String this.path) : values = null;
 }
 
 class AuthConfig {
@@ -642,6 +659,7 @@ class ResolvedBuildOutput {
   final Map<String, String> effectiveEnv;
   final InfoPlistValue? effectiveInfoPlist;
   final EntitlementsValue? effectiveEntitlements;
+  final ExportOptionsValue? effectiveExportOptions;
 
   const ResolvedBuildOutput({
     required this.flavorName,
@@ -661,5 +679,6 @@ class ResolvedBuildOutput {
     this.effectiveEnv = const {},
     this.effectiveInfoPlist,
     this.effectiveEntitlements,
+    this.effectiveExportOptions,
   });
 }

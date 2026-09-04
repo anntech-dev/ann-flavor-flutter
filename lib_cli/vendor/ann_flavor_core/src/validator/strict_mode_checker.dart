@@ -149,6 +149,7 @@ const _schema = <String, _ClassSchema>{
     'env': null,
     'info_plist': null,
     'entitlements': null,
+    'export_options': null,
     'sdk': _Nested.object('IosSdk'),
   }),
   'IosSdk': _ClassSchema({
@@ -174,6 +175,7 @@ const _schema = <String, _ClassSchema>{
     'env': null,
     'info_plist': null,
     'entitlements': null,
+    'export_options': null,
   }),
   'IosCredentials': _ClassSchema({
     'signing': _Nested.object('IosSigning'),
@@ -182,9 +184,6 @@ const _schema = <String, _ClassSchema>{
   'IosSigning': _ClassSchema({'team_id': null}),
   'AppStoreCredentials': _ClassSchema({
     'api_key': null,
-    'export_options_plist': null,
-    'export_options_team_id': null,
-    'export_options_signing_certificate': null,
   }),
   'WebPlatform': _ClassSchema({
     'default': _Nested.object('WebDefault'),
@@ -270,6 +269,7 @@ const _schema = <String, _ClassSchema>{
     'env': null,
     'info_plist': null,
     'entitlements': null,
+    'export_options': null,
   }),
   'FirebaseConfig': _ClassSchema({
     'project_id': null,

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.4
+
+**Added:** `sync` now generates a per-flavor, per-build-type `ios/ann/ExportOptions/<flavor>-<build_type>.plist` from your `annspec.yaml`, replacing a hand-maintained `exportOptions.plist` shared across your whole app. It auto-fills your team ID and App Store provisioning profile, and you can add or override any key with a new `export_options:` field (cascades the same way as your other iOS settings). If you were setting `credentials.app_store.export_options_plist`, `export_options_team_id`, or `export_options_signing_certificate`, remove them — they're retired and no longer read.
+
 ## 1.7.3
 
 **Fixed:** 1.7.2 was published broken — every command failed immediately with a dependency resolution error. Fully fixed, safe to upgrade.

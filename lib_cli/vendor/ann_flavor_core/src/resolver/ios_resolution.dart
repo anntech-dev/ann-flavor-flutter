@@ -119,4 +119,37 @@ class IosResolution {
     }
     return merged;
   }
+
+  /// The 4 raw `export_options` levels for a flavor at a specific build
+  /// type, in least-specific-first order — same shape and rationale as
+  /// [infoPlistLevels].
+  static List<ExportOptionsValue?> exportOptionsLevels(
+    IosPlatform platform,
+    String flavorKey,
+    String buildType,
+  ) {
+    final flavor = platform.flavors[flavorKey] ?? const IosFlavor();
+    final defaults = platform.defaults;
+    return [
+      defaults.exportOptions,
+      defaults.buildTypes[buildType]?.exportOptions,
+      flavor.exportOptions,
+      flavor.buildTypes[buildType]?.exportOptions,
+    ];
+  }
+
+  /// Unions already-resolved `export_options` maps for a single flavor/build
+  /// type across all levels present, least-specific first — same merge rule
+  /// as [mergeInfoPlist]. Callers layer this union on top of a
+  /// generator-computed base (team ID, provisioning profile guess) — see
+  /// ann-flavor-flutter's ios_generator.dart.
+  static Map<String, dynamic> mergeExportOptions(
+    List<Map<String, dynamic>?> levelsLeastSpecificFirst,
+  ) {
+    final merged = <String, dynamic>{};
+    for (final level in levelsLeastSpecificFirst) {
+      if (level != null) merged.addAll(level);
+    }
+    return merged;
+  }
 }
