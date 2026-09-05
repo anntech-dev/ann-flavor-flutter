@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'package:test/test.dart';
-import 'package:ann_flavor_core/ann_flavor_core.dart' as core;
 import '../lib_cli/generators/android_generator.dart';
+import '../lib_cli/spec/annspec_reader.dart';
 
-core.AnnSpec _specWithTooling(String? gradlePluginConstraint) {
-  final yaml = '''
+void _writeSpec(Directory dir, {String? gradlePluginConstraint}) {
+  final toolingBlock = gradlePluginConstraint != null
+      ? 'tooling:\n  gradle_plugin: $gradlePluginConstraint\n'
+      : '';
+  File('${dir.path}/annspec.yaml').writeAsStringSync('''
 enabled: true
-${gradlePluginConstraint != null ? 'tooling:\n  gradle_plugin: $gradlePluginConstraint\n' : ''}app:
+${toolingBlock}app:
   android:
     default:
       id: com.example.test
@@ -21,8 +24,7 @@ ${gradlePluginConstraint != null ? 'tooling:\n  gradle_plugin: $gradlePluginCons
         version_name: "1.0.0"
         version_code: 100000
         id_suffix: .app
-''';
-  return core.AnnSpecParser.parse(yaml);
+''');
 }
 
 void _writeAndroidProject(Directory dir) {
@@ -64,7 +66,8 @@ void main() {
 
     test('tooling.gradle_plugin pinned — uses the pin directly, never calls the fetcher', () async {
       var fetchCalled = false;
-      final spec = _specWithTooling('^2.3.6');
+      _writeSpec(tempDir, gradlePluginConstraint: '^2.3.6');
+      final spec = AnnspecReader.read(tempDir.path);
 
       await AndroidGenerator.generate(tempDir.path, spec, (artifactId) async {
         fetchCalled = true;
@@ -78,7 +81,8 @@ void main() {
     });
 
     test('tooling.gradle_plugin absent — calls the fetcher and uses its result', () async {
-      final spec = _specWithTooling(null);
+      _writeSpec(tempDir);
+      final spec = AnnspecReader.read(tempDir.path);
 
       await AndroidGenerator.generate(tempDir.path, spec, (artifactId) async {
         expect(artifactId, 'flavorize');
@@ -91,7 +95,8 @@ void main() {
     });
 
     test('tooling.gradle_plugin absent, fetch fails — sync throws instead of silently falling back', () async {
-      final spec = _specWithTooling(null);
+      _writeSpec(tempDir);
+      final spec = AnnspecReader.read(tempDir.path);
 
       expect(
         () => AndroidGenerator.generate(
