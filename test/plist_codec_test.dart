@@ -77,5 +77,15 @@ void main() {
       final redecoded = PlistCodec.decode(xml);
       expect(redecoded['Name'], 'Tom & Jerry <Show>');
     });
+
+    test('escapes > alongside < and & in the raw XML output (ann-flavor-tooling#72)', () {
+      final xml = PlistCodec.encode(<String, dynamic>{'thinning': '<none>'});
+      expect(xml, contains('<string>&lt;none&gt;</string>'),
+          reason: '> must be escaped to &gt; consistently with < → &lt;, '
+              'matching Apple plist convention — a bare > left unescaped is '
+              'valid XML but inconsistent with every other plist writer');
+      expect(xml, isNot(contains('&lt;none>')),
+          reason: 'the trailing > must not be left as a literal character');
+    });
   });
 }

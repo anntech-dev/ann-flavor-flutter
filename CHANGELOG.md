@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.6
+
+**Fixed:** Generated plist files (e.g. `exportOptions.plist`) escaped `<` and `&` in string values but left `>` as a literal character — for example `<none>` came out as `&lt;none>` instead of `&lt;none&gt;`. Still valid XML either way, but inconsistent with the plist convention every other tool follows. `>` is now escaped consistently.
+
 ## 1.7.5
 
 **Changed:** If your `annspec.yaml` doesn't pin a `tooling.gradle_plugin` version, `sync` now looks up the real, currently-published ANN Gradle plugin version from Maven Central instead of using a version bundled with this package — so you always get an up-to-date version even if you haven't upgraded `ann_flutter_flavor` in a while. This does mean `sync` now needs network access in that specific case; pin `tooling.gradle_plugin` in your `annspec.yaml` if you want `sync` to stay fully offline. If the lookup fails (no network, registry down), `sync` now fails with a clear error instead of silently using a possibly-outdated version.

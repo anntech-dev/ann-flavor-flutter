@@ -64,7 +64,20 @@ class PlistCodec {
       _buildDict(builder, values);
     });
     final doc = builder.buildDocument();
-    return '${doc.toXmlString(pretty: true, indent: '\t')}\n';
+    final xmlString = doc.toXmlString(pretty: true, indent: '\t');
+    // The `xml` package correctly escapes `<` and `&` in text content per the
+    // XML spec, but only escapes `>` when it forms the CDATA-close sequence
+    // `]]>` — a bare `>` is valid, unescaped XML. Apple's plist convention (and
+    // every other plist writer, including the hand-maintained files this
+    // generator replaces) escapes `>` unconditionally for readability/
+    // consistency. Safe to do as a post-process restricted to <string> content:
+    // this codec never emits nested <string> elements or any other place a
+    // literal `>` could appear outside a string's own text.
+    final escaped = xmlString.replaceAllMapped(
+      RegExp(r'<string>([\s\S]*?)</string>'),
+      (m) => '<string>${m.group(1)!.replaceAll('>', '&gt;')}</string>',
+    );
+    return '$escaped\n';
   }
 
   static void _buildDict(XmlBuilder builder, Map<String, dynamic> values) {
