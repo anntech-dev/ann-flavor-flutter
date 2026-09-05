@@ -2,7 +2,7 @@ name: ann_flutter_flavor
 description: >-
   Multi-flavor Flutter toolkit. Reads annspec.yaml, generates typed flavor
   classes, and wires Android, iOS, Firebase, AdMob and RevenueCat.
-version: 1.7.4
+version: 1.7.5
 homepage: https://anntech.dev/docs/ann-flutter-flavor-suite/flutter-overview
 repository: https://github.com/anntech-dev/ann-flavor-flutter
 issue_tracker: https://github.com/anntech-dev/ann-flavor-flutter/issues
@@ -29,7 +29,6 @@ dependencies:
   yaml: ^3.1.3
   args: ^2.7.0
   path: ^1.9.1
-  collection: ^1.19.1
   meta: ^1.16.0
   xml: ^7.0.1
 

@@ -5,7 +5,12 @@ final _packageRoot = Directory.current.path.endsWith('/test')
     ? Directory.current.parent.path
     : Directory.current.path;
 
-/// Reads gradle_plugin version from versions.yaml at the repo root.
+/// Reads gradle_plugin version from versions.yaml at the repo root — the
+/// version these tests expect sync to fetch live from Maven Central when
+/// annspec.yaml has no tooling.gradle_plugin pin (requires network; the
+/// fetched value should equal versions.yaml's once that version is actually
+/// published, which is why this is read from the same source rather than a
+/// hardcoded expectation).
 /// Falls back two levels (package root → plugins/ → repo root).
 String _readGradleVersion() {
   final candidates = [
@@ -251,7 +256,7 @@ plugins {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
       expect(content, contains('version "$_gradleVersion"'),
-          reason: 'Version should be updated to current kGradlePluginVersion');
+          reason: 'Version should be updated to current gradle_plugin (live-fetched from Maven Central)');
       expect(content, isNot(contains('version "0.0.1"')),
           reason: 'Stale version should be replaced');
     });
@@ -271,7 +276,7 @@ plugins {
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle').readAsStringSync();
       expect(content, contains("version '$_gradleVersion'"),
-          reason: 'Version should be updated to current kGradlePluginVersion');
+          reason: 'Version should be updated to current gradle_plugin (live-fetched from Maven Central)');
       expect(content, isNot(contains("version '0.0.1'")),
           reason: 'Stale version should be replaced');
     });

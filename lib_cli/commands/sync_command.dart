@@ -75,7 +75,7 @@ class SyncCommand extends Command<void> {
 
     // Step 2 — Android wiring (fast, deterministic)
     if (!jsonMode) print('\n[2/7] Wiring Android (Gradle plugin + defaultConfig)...');
-    AndroidGenerator.generate(projectRoot, spec);
+    await AndroidGenerator.generate(projectRoot, spec);
 
     // Step 3 — iOS wiring (fast, deterministic)
     if (!jsonMode) print('\n[3/7] Wiring iOS (CocoaPods plugin + xcconfig + Info.plist)...');

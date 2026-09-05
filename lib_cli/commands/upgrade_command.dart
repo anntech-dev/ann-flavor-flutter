@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
+import '../registry/maven_registry.dart';
 import '../spec/annspec_reader.dart';
 
 class UpgradeCommand extends Command<void> {
@@ -144,17 +145,7 @@ class UpgradeCommand extends Command<void> {
     }
   }
 
-  Future<String?> _fetchMavenLatest(String artifactId) async {
-    // maven-metadata.xml is the authoritative "latest version" source for a
-    // Maven Central artifact — search.maven.org's Solr search index can lag or
-    // miss artifacts entirely and is not meant for exact-artifact lookups.
-    final body = await _httpGet(
-      'https://repo1.maven.org/maven2/dev/anntech/flavorize/$artifactId/maven-metadata.xml',
-    );
-    final match = RegExp(r'<latest>([^<]+)</latest>').firstMatch(body) ??
-        RegExp(r'<release>([^<]+)</release>').firstMatch(body);
-    return match?.group(1);
-  }
+  Future<String?> _fetchMavenLatest(String artifactId) => fetchLatestMavenVersion(artifactId);
 
   Future<String?> _fetchRubyGemsLatest(String gemName) async {
     final body = await _httpGet('https://rubygems.org/api/v1/gems/$gemName.json');

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.5
+
+**Changed:** If your `annspec.yaml` doesn't pin a `tooling.gradle_plugin` version, `sync` now looks up the real, currently-published ANN Gradle plugin version from Maven Central instead of using a version bundled with this package — so you always get an up-to-date version even if you haven't upgraded `ann_flutter_flavor` in a while. This does mean `sync` now needs network access in that specific case; pin `tooling.gradle_plugin` in your `annspec.yaml` if you want `sync` to stay fully offline. If the lookup fails (no network, registry down), `sync` now fails with a clear error instead of silently using a possibly-outdated version.
+
 ## 1.7.4
 
 **Added:** `sync` now generates a per-flavor, per-build-type `ios/ann/ExportOptions/<flavor>-<build_type>.plist` from your `annspec.yaml`, replacing a hand-maintained `exportOptions.plist` shared across your whole app. It auto-fills your team ID and App Store provisioning profile, and you can add or override any key with a new `export_options:` field (cascades the same way as your other iOS settings). If you were setting `credentials.app_store.export_options_plist`, `export_options_team_id`, or `export_options_signing_certificate`, remove them — they're retired and no longer read.

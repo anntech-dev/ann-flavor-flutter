@@ -421,13 +421,15 @@ plugins {
           reason: 'version from tooling.gradle_plugin should appear in settings.gradle.kts');
     });
 
-    test('gradle_plugin absent — falls back to kGradlePluginVersion', () async {
+    test('gradle_plugin absent — fetches the latest version live from Maven Central', () async {
+      // No tooling.gradle_plugin pin, so sync must reach Maven Central over
+      // the network for this to pass — see android_generator.dart's
+      // _resolveGradleVersion.
       writeAndroidSpec(tempDir);
       final result = await _runSync(tempDir, []);
       expect(result.exitCode, 0,
           reason: 'stderr: ${result.stderr}\nstdout: ${result.stdout}');
       final settings = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
-      // The fallback constant is in plugin_versions.dart; just verify ANN plugin was wired
       expect(settings, contains('dev.anntech.flavorize'),
           reason: 'ANN Gradle plugin should be wired even without tooling.gradle_plugin');
     });

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:ann_flutter_flavor/src/plugin_versions.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
+import '../registry/maven_registry.dart';
 
 const _pluginId = 'dev.anntech.flavorize';
 
@@ -30,13 +30,17 @@ _GradleFile? _resolveGradle(List<String> pathSegments) {
 /// Ensures the ANN Gradle plugin is wired into the Android project.
 /// Supports both Kotlin DSL (build.gradle.kts) and Groovy DSL (build.gradle).
 class AndroidGenerator {
-  static void generate(String projectRoot, [core.AnnSpec? spec]) {
+  static Future<void> generate(
+    String projectRoot, [
+    core.AnnSpec? spec,
+    Future<String> Function(String artifactId) fetchLatestVersion = fetchLatestMavenVersion,
+  ]) async {
     final androidDir = Directory(p.join(projectRoot, 'android'));
     if (!androidDir.existsSync()) {
       print('  ⚠ No android/ directory found — skipping Android wiring.');
       return;
     }
-    final gradleVersion = _resolveGradleVersion(spec);
+    final gradleVersion = await _resolveGradleVersion(spec, fetchLatestVersion);
     _patchSettings(androidDir, gradleVersion);
     _patchAppBuild(androidDir);
 
@@ -46,10 +50,30 @@ class AndroidGenerator {
     }
   }
 
-  static String _resolveGradleVersion(core.AnnSpec? spec) {
+  /// Resolves the ANN Gradle plugin version to wire into the project.
+  ///
+  /// Plugins are independent releases — annspec.yaml's own tooling.gradle_plugin
+  /// pin always wins. Without a pin, the *real*, currently-published version is
+  /// fetched live from Maven Central rather than falling back to a version
+  /// baked into this package at its own last publish, which would silently go
+  /// stale the moment the Gradle plugin publishes again on its own.
+  static Future<String> _resolveGradleVersion(
+    core.AnnSpec? spec,
+    Future<String> Function(String artifactId) fetchLatestVersion,
+  ) async {
     final constraint = spec?.tooling?.gradlePlugin;
-    if (constraint == null) return kGradlePluginVersion;
-    return constraint.startsWith('^') ? constraint.substring(1) : constraint;
+    if (constraint != null) {
+      return constraint.startsWith('^') ? constraint.substring(1) : constraint;
+    }
+    try {
+      return await fetchLatestVersion('flavorize');
+    } catch (e) {
+      throw Exception(
+          'Could not resolve the ANN Gradle plugin version from Maven Central '
+          '(no tooling.gradle_plugin pin in annspec.yaml, so sync needs network '
+          'access to look up the latest version). Pin one explicitly under '
+          'tooling.gradle_plugin to avoid this network dependency. Cause: $e');
+    }
   }
 
   static void _patchSettings(Directory androidDir, String pluginVersion) {
