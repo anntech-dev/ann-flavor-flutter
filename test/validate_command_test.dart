@@ -137,4 +137,68 @@ void main() {
           reason: 'testspec.errors must be non-empty for an invalid testspec');
     });
   });
+
+  group('validate command — functions block (REQ-FUNC-00020/00070)', () {
+    late Directory tempDir;
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('validate_fn_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    Future<List<Map<String, dynamic>>> errorsFor(String functionsYaml) async {
+      _writeValidAnnspec(tempDir);
+      final f = File('${tempDir.path}/annspec.yaml');
+      f.writeAsStringSync(f.readAsStringSync() + functionsYaml);
+      final result = await _runValidate(tempDir, ['--format', 'json']);
+      final json = jsonDecode(result.stdout.toString().trim()) as Map<String, dynamic>;
+      return (json['errors'] as List).cast<Map<String, dynamic>>();
+    }
+
+    test('a valid functions block adds no errors', () async {
+      final errors = await errorsFor('''
+functions:
+  projects:
+    prod: { project_id: my-app-prod }
+    demo: { project_id: my-app-demo }
+  codebases:
+    purchases:
+      source: ../shared/fn
+      project_params:
+        prod: { A: "1" }
+''');
+      expect(errors, isEmpty);
+    });
+
+    test('rejects absolute, drive-letter and backslash sources', () async {
+      for (final bad in ['/abs/path', r'C:/x', r'C:\x', r'sub\dir']) {
+        final errors = await errorsFor('''
+functions:
+  projects:
+    prod: { project_id: p }
+  codebases:
+    purchases:
+      source: "${bad.replaceAll(r'\', r'\\')}"
+''');
+        expect(errors.map((e) => e['path']), contains('functions.codebases.purchases'),
+            reason: 'source "$bad" should be rejected');
+      }
+    });
+
+    test('reports a blank project_id, a duplicate project_id and an unknown alias', () async {
+      final errors = await errorsFor('''
+functions:
+  projects:
+    a: {}
+    b: { project_id: same }
+    c: { project_id: same }
+  codebases:
+    purchases:
+      project_params:
+        stage: { A: "1" }
+''');
+      final messages = errors.map((e) => '${e['path']} ${e['message']}').join('\n');
+      expect(messages, contains('functions.projects.a'));
+      expect(messages, contains('blank'));
+      expect(messages, contains("already used by 'b'"));
+      expect(messages, contains("'stage' is not declared"));
+    });
+  });
 }

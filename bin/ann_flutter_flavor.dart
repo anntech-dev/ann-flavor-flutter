@@ -8,6 +8,7 @@ import '../lib_cli/commands/summary_command.dart';
 import '../lib_cli/commands/doctor_command.dart';
 import '../lib_cli/commands/upgrade_command.dart';
 import '../lib_cli/commands/generate_icons_command.dart';
+import '../lib_cli/commands/functions_prepare_command.dart';
 
 Future<void> main(List<String> args) async {
   final runner = CommandRunner<void>(
@@ -22,6 +23,7 @@ Future<void> main(List<String> args) async {
     ..addCommand(SummaryCommand())
     ..addCommand(DoctorCommand())
     ..addCommand(UpgradeCommand())
+    ..addCommand(FunctionsPrepareCommand())
     ..addCommand(GenerateIconsCommand());
 
   try {

@@ -44,7 +44,12 @@ class _Nested {
 ///
 /// env is a flat string map of arbitrary, user-declared native build-setting
 /// keys (e.g. REVERSED_CLIENT_ID) — same free-form treatment.
-const _freeFormFields = {'custom', 'dart_defines', 'env', 'info_plist', 'entitlements'};
+///
+/// params / project_params are the Firebase Functions values (REQ-FUNC-00010):
+/// the keys are the user's own param names and project aliases.
+const _freeFormFields = {
+  'custom', 'dart_defines', 'env', 'info_plist', 'entitlements', 'params', 'project_params',
+};
 
 const _schema = <String, _ClassSchema>{
   'AnnSpec': _ClassSchema({
@@ -52,6 +57,7 @@ const _schema = <String, _ClassSchema>{
     'enabled': null,
     'debug': _Nested.object('DebugConfig'),
     'tooling': _Nested.object('ToolingConfig'),
+    'functions': _Nested.object('FunctionsConfig'),
   }),
   'AnnApp': _ClassSchema({
     'android': _Nested.object('AndroidPlatform'),
@@ -72,6 +78,19 @@ const _schema = <String, _ClassSchema>{
     'gradle_plugin': null,
     'cocoapods_plugin': null,
     'fastlane_plugin': null,
+  }),
+  'FunctionsConfig': _ClassSchema({
+    'projects': _Nested.map('FunctionsProject'),
+    'codebases': _Nested.map('FunctionsCodebase'),
+  }),
+  'FunctionsProject': _ClassSchema({
+    'project_id': null,
+    'service_account': null,
+  }),
+  'FunctionsCodebase': _ClassSchema({
+    'source': null,
+    'params': null,
+    'project_params': null,
   }),
   'AnnIntegrations': _ClassSchema({
     'fastlane': null,

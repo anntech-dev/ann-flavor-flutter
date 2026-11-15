@@ -5,12 +5,14 @@ class AnnSpec {
   final bool enabled;
   final DebugConfig debugConfig;
   final ToolingConfig? tooling;
+  final FunctionsConfig? functions;
 
   const AnnSpec({
     this.app = const AnnApp(),
     this.enabled = true,
     this.debugConfig = const DebugConfig(),
     this.tooling,
+    this.functions,
   });
 
   /// Whether flavor [flavorKey] has an entry under `app.<platformKey>.flavor`
@@ -43,6 +45,34 @@ class ToolingConfig {
   final String? fastlanePlugin;
 
   const ToolingConfig({this.gradlePlugin, this.cocoapodsPlugin, this.fastlanePlugin});
+}
+
+// ─── Functions (REQ-FUNC-00010 — top-level, non-cascading) ────────────────────
+
+class FunctionsProject {
+  final String? projectId;
+  final String? serviceAccount;
+
+  const FunctionsProject({this.projectId, this.serviceAccount});
+}
+
+class FunctionsCodebase {
+  final String source;
+  final Map<String, String> params;
+  final Map<String, Map<String, String>> projectParams;
+
+  const FunctionsCodebase({
+    this.source = 'functions',
+    this.params = const {},
+    this.projectParams = const {},
+  });
+}
+
+class FunctionsConfig {
+  final Map<String, FunctionsProject> projects;
+  final Map<String, FunctionsCodebase> codebases;
+
+  const FunctionsConfig({this.projects = const {}, this.codebases = const {}});
 }
 
 class AnnApp {

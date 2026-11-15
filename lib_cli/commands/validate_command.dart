@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
+import '../validators/functions_validator.dart';
 import '../validators/testspec_validator.dart';
 
 const _androidOnlyBuildTypeFields = [
@@ -110,6 +111,7 @@ class ValidateCommand extends Command<void> {
 
     _checkFirebaseIntegration(spec, errors, warnings);
     _checkDeprecatedFirebaseFields(rawDoc, errors);
+    _checkFunctions(spec, errors);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -123,6 +125,19 @@ class ValidateCommand extends Command<void> {
       _printTestspecResults(testspecResult);
     }
     if (errors.isNotEmpty || testspecResult.errors.isNotEmpty) exitCode = 1;
+  }
+
+  // ── Firebase Functions (REQ-FUNC-00020, REQ-FUNC-00070) ───────────────────
+
+  void _checkFunctions(core.AnnSpec spec, List<_Issue> errors) {
+    final fn = spec.functions;
+    if (fn == null) return;
+    for (final problem in FunctionsValidator.validate(fn)) {
+      final split = problem.indexOf(': ');
+      errors.add(split < 0
+          ? _Issue('functions', problem)
+          : _Issue(problem.substring(0, split), problem.substring(split + 2)));
+    }
   }
 
   // ── Android platform ───────────────────────────────────────────────────────

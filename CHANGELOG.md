@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+
+**Added:** A new `functions:` section in `annspec.yaml` and a `functions-prepare` command for Firebase Functions. Name your Firebase projects once, give each functions codebase its own settings, and the command copies your shared functions package into `build/functions/<codebase>/` and writes the `.env` file for each project from your own spec — so per-app values no longer live inside the shared package. It checks your function code for the values it needs and stops, before deploy, if a project is missing one or if a secret would be written to a file. `validate` now also checks the new section. Works the same on macOS, Linux and Windows.
+
 ## 1.7.6
 
 **Fixed:** Generated plist files (e.g. `exportOptions.plist`) escaped `<` and `&` in string values but left `>` as a literal character — for example `<none>` came out as `&lt;none>` instead of `&lt;none&gt;`. Still valid XML either way, but inconsistent with the plist convention every other tool follows. `>` is now escaped consistently.

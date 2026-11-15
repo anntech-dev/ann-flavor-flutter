@@ -24,13 +24,34 @@ class AnnSpecParser {
 
   static AnnSpec fromMap(Map<String, dynamic> raw) {
     final toolingMap = _map(raw, 'tooling');
+    final functionsMap = _map(raw, 'functions');
     return AnnSpec(
       app:    _parseAnnApp(_map(raw, 'app')),
       enabled:     raw['enabled'] as bool? ?? true,
       debugConfig: _parseDebugConfig(_map(raw, 'debug')),
       tooling:     toolingMap.isEmpty ? null : _parseTooling(toolingMap),
+      functions:   functionsMap.isEmpty ? null : _parseFunctions(functionsMap),
     );
   }
+
+  static FunctionsConfig _parseFunctions(Map<String, dynamic> m) => FunctionsConfig(
+    projects: _map(m, 'projects').map((alias, v) {
+      final pm = _asMap(v);
+      return MapEntry(alias, FunctionsProject(
+        projectId:      pm['project_id']?.toString(),
+        serviceAccount: pm['service_account']?.toString(),
+      ));
+    }),
+    codebases: _map(m, 'codebases').map((name, v) {
+      final cm = _asMap(v);
+      return MapEntry(name, FunctionsCodebase(
+        source: cm['source']?.toString() ?? 'functions',
+        params: _parseEnv(_map(cm, 'params')),
+        projectParams: _map(cm, 'project_params')
+            .map((alias, pv) => MapEntry(alias, _parseEnv(_asMap(pv)))),
+      ));
+    }),
+  );
 
   static ToolingConfig _parseTooling(Map<String, dynamic> m) => ToolingConfig(
     gradlePlugin: m['gradle_plugin'] as String?,

@@ -5,32 +5,18 @@ final _packageRoot = Directory.current.path.endsWith('/test')
     ? Directory.current.parent.path
     : Directory.current.path;
 
-/// Reads gradle_plugin version from versions.yaml at the repo root — the
-/// version these tests expect sync to fetch live from Maven Central when
-/// annspec.yaml has no tooling.gradle_plugin pin (requires network; the
-/// fetched value should equal versions.yaml's once that version is actually
-/// published, which is why this is read from the same source rather than a
-/// hardcoded expectation).
-/// Falls back two levels (package root → plugins/ → repo root).
-String _readGradleVersion() {
-  final candidates = [
-    '$_packageRoot/../../versions.yaml',          // running from package dir
-    '$_packageRoot/../../../versions.yaml',        // running from test/ subdir
-    '${Directory.current.path}/versions.yaml',    // running from repo root
-  ];
-  for (final path in candidates) {
-    final f = File(path);
-    if (!f.existsSync()) continue;
-    for (final line in f.readAsLinesSync()) {
-      if (line.startsWith('gradle_plugin:')) {
-        return line.split(':').last.trim();
-      }
-    }
-  }
-  throw StateError('versions.yaml not found — searched: $candidates');
-}
-
-final _gradleVersion = _readGradleVersion();
+// The `android_generator — _patchSettings version update` group below pins
+// this exact version via tooling.gradle_plugin in its own spec fixture
+// rather than exercising the live-Maven-Central-fetch fallback path — that
+// path is already covered, fully offline via dependency injection, by
+// test/android_generator_test.dart. Coupling this group's expectation to
+// versions.yaml's real value (as an earlier version of this file did) meant
+// any commit that bumped gradle_plugin locally, before that version was
+// actually published, would fail CI by construction: the test read its
+// expectation from versions.yaml (intent) while the generator read its
+// value from Maven Central (published fact) — the two only agree after a
+// publish. Pinning the fixture removes that coupling entirely.
+const _pinnedGradleVersion = '9.9.9';
 
 Future<ProcessResult> _runSync(Directory projectDir) =>
     Process.run('dart', ['run', 'ann_flutter_flavor', 'sync', '--project', projectDir.path],
@@ -216,6 +202,44 @@ void main() {
   group('android_generator — _patchSettings version update', () {
     late Directory tempDir;
 
+    // Pins tooling.gradle_plugin so this group's expectations never depend
+    // on the live Maven Central fetch / versions.yaml's real value — see the
+    // comment on _pinnedGradleVersion above.
+    void _writeSpecWithPinnedGradleVersion(Directory dir) {
+      File('${dir.path}/annspec.yaml').writeAsStringSync('''
+enabled: true
+tooling:
+  gradle_plugin: $_pinnedGradleVersion
+app:
+  integrations:
+    fastlane: true
+  android:
+    default:
+      id: com.example.test
+      sdk:
+        minSdk: 24
+        compileSdk: 35
+        targetSdk: 35
+    flavor:
+      app:
+        name: "Test"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+  ios:
+    default:
+      id: com.example.test
+    flavor:
+      app:
+        name: "Test"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100000
+        id_suffix: .app
+''');
+    }
+
     Directory _makeAndroidDir(String settingsContent, {bool kts = true}) {
       final androidDir = Directory('${tempDir.path}/android')..createSync(recursive: true);
       final appDir = Directory('${androidDir.path}/app')..createSync(recursive: true);
@@ -237,7 +261,7 @@ android {
 
     setUp(() {
       tempDir = Directory.systemTemp.createTempSync('patch_version_test_');
-      _writeMinimalSpec(tempDir);
+      _writeSpecWithPinnedGradleVersion(tempDir);
     });
     tearDown(() => tempDir.deleteSync(recursive: true));
 
@@ -255,8 +279,8 @@ plugins {
 ''');
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle.kts').readAsStringSync();
-      expect(content, contains('version "$_gradleVersion"'),
-          reason: 'Version should be updated to current gradle_plugin (live-fetched from Maven Central)');
+      expect(content, contains('version "$_pinnedGradleVersion"'),
+          reason: 'Version should be updated to the pinned tooling.gradle_plugin');
       expect(content, isNot(contains('version "0.0.1"')),
           reason: 'Stale version should be replaced');
     });
@@ -275,8 +299,8 @@ plugins {
 ''', kts: false);
       await _runSync(tempDir);
       final content = File('${tempDir.path}/android/settings.gradle').readAsStringSync();
-      expect(content, contains("version '$_gradleVersion'"),
-          reason: 'Version should be updated to current gradle_plugin (live-fetched from Maven Central)');
+      expect(content, contains("version '$_pinnedGradleVersion'"),
+          reason: 'Version should be updated to the pinned tooling.gradle_plugin');
       expect(content, isNot(contains("version '0.0.1'")),
           reason: 'Stale version should be replaced');
     });
@@ -290,14 +314,14 @@ pluginManagement {
     }
 }
 plugins {
-    id("dev.anntech.flavorize") version "$_gradleVersion" apply false
+    id("dev.anntech.flavorize") version "$_pinnedGradleVersion" apply false
 }
 ''');
       final file = File('${tempDir.path}/android/settings.gradle.kts');
       await _runSync(tempDir);
       final content = file.readAsStringSync();
       // Version should remain the same and appear exactly once
-      expect('version "$_gradleVersion"'.allMatches(content).length, 1,
+      expect('version "$_pinnedGradleVersion"'.allMatches(content).length, 1,
           reason: 'Version line should appear exactly once — no duplicate inserted');
     });
   });
