@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.1
+
+**Fixed:** 1.8.0 could not be published because of a development-only check, so it never reached pub.dev. 1.8.1 has everything described under 1.8.0 (the `functions:` section and the `functions-prepare` command) with no change in behavior. If you were waiting for 1.8.0, upgrade to 1.8.1.
+
 ## 1.8.0
 
 **Added:** A new `functions:` section in `annspec.yaml` and a `functions-prepare` command for Firebase Functions. Name your Firebase projects once, give each functions codebase its own settings, and the command copies your shared functions package into `build/functions/<codebase>/` and writes the `.env` file for each project from your own spec — so per-app values no longer live inside the shared package. It checks your function code for the values it needs and stops, before deploy, if a project is missing one or if a secret would be written to a file. `validate` now also checks the new section. Works the same on macOS, Linux and Windows.
