@@ -386,7 +386,7 @@ class SyncCommand extends Command<void> {
     for (final entry in node.entries) {
       final key = entry.key as String;
       final childPath = path.isEmpty ? key : '$path.$key';
-      if (key == 'firebase' && entry.value is YamlMap) {
+      if (key == 'firebase' && path.isNotEmpty && entry.value is YamlMap) {
         final fb = entry.value as YamlMap;
         for (final fbKey in fb.keys.cast<String>()) {
           if (!_knownFirebaseKeys.contains(fbKey)) {

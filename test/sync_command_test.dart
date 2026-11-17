@@ -129,6 +129,25 @@ void main() {
       expect(dartOut.existsSync(), isFalse);
     });
 
+    test('accepts the top-level firebase: block (projects, functions, rules)', () async {
+      _writeValidSpec(tempDir);
+      final f = File('${tempDir.path}/annspec.yaml');
+      f.writeAsStringSync('''
+${f.readAsStringSync()}
+firebase:
+  projects:
+    demo: { project_id: my-demo }
+  functions:
+    codebases:
+      api: {}
+  rules:
+    firestore: {}
+''');
+      final result = await _runSync(tempDir, ['--format', 'json']);
+      final out = '${result.stdout}${result.stderr}';
+      expect(out, isNot(contains('is not a recognised firebase field')));
+    });
+
     test('--format json emits JSON on stdout and exits 1 on errors', () async {
       _writeInvalidSpec(tempDir);
       final result = await _runSync(tempDir, ['--format', 'json']);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.1
+
+**Fixed:** `sync` and `upgrade` no longer stop with "`projects` is not a recognised firebase field" when `annspec.yaml` has the top-level `firebase:` section from 1.9.0. `validate` already accepted it; `sync` ran its own check that did not.
+
 ## 1.9.0
 
 **Added:** One `firebase:` section in `annspec.yaml` for everything Firebase. Name your Firebase projects once under `firebase.projects` and use them for both Functions and rules, put the Functions settings under `firebase.functions`, and declare your Firestore and Storage rules files (and a Storage CORS file) under `firebase.rules`. `validate` now checks the whole section: duplicate or blank project ids, rules files that do not exist, a CORS file that is not a JSON list, and the same project written two different ways.
