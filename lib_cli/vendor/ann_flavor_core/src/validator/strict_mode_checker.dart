@@ -58,6 +58,7 @@ const _schema = <String, _ClassSchema>{
     'debug': _Nested.object('DebugConfig'),
     'tooling': _Nested.object('ToolingConfig'),
     'functions': _Nested.object('FunctionsConfig'),
+    'firebase': _Nested.object('FirebaseBlock'),
   }),
   'AnnApp': _ClassSchema({
     'android': _Nested.object('AndroidPlatform'),
@@ -91,6 +92,32 @@ const _schema = <String, _ClassSchema>{
     'source': null,
     'params': null,
     'project_params': null,
+  }),
+  'FirebaseBlock': _ClassSchema({
+    'projects': _Nested.map('FirebaseProject'),
+    'functions': _Nested.object('FirebaseFunctions'),
+    'rules': _Nested.object('RulesConfig'),
+  }),
+  'FirebaseProject': _ClassSchema({
+    'project_id': null,
+    'service_account': null,
+    'storage_bucket': null,
+  }),
+  'FirebaseFunctions': _ClassSchema({
+    'codebases': _Nested.map('FunctionsCodebase'),
+  }),
+  'RulesConfig': _ClassSchema({
+    'firestore': _Nested.object('FirestoreRules'),
+    'storage': _Nested.object('StorageRules'),
+  }),
+  'FirestoreRules': _ClassSchema({
+    'source': null,
+    'indexes': null,
+    'database': null,
+  }),
+  'StorageRules': _ClassSchema({
+    'source': null,
+    'cors': null,
   }),
   'AnnIntegrations': _ClassSchema({
     'fastlane': null,

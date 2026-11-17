@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0
+
+**Added:** One `firebase:` section in `annspec.yaml` for everything Firebase. Name your Firebase projects once under `firebase.projects` and use them for both Functions and rules, put the Functions settings under `firebase.functions`, and declare your Firestore and Storage rules files (and a Storage CORS file) under `firebase.rules`. `validate` now checks the whole section: duplicate or blank project ids, rules files that do not exist, a CORS file that is not a JSON list, and the same project written two different ways.
+
+**Changed:** The top-level `functions:` section from 1.8.0 still works, but `validate` now warns about it and shows exactly what to move under `firebase:`. Having both `firebase.functions` and a top-level `functions:`, or the same project defined differently in both places, is an error. `functions-prepare` reads the new section and gives the same result as before.
+
 ## 1.8.2
 
 **Fixed:** Generating web icons no longer changes your own `web/` folder. Before, `generate-icons` replaced `web/favicon.png`, deleted the files in `web/icons/` and reset the colors in `web/manifest.json`. Your `web/` folder is now set aside while the icons are made and put back afterwards, even if something fails. The icons still end up in `web_flavors/<flavor>/icons/`. If an earlier run was interrupted and left a `web.ann-backup` folder behind, the command now stops and tells you how to restore it.

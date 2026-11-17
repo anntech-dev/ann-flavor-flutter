@@ -177,7 +177,7 @@ functions:
     purchases:
       source: "${bad.replaceAll(r'\', r'\\')}"
 ''');
-        expect(errors.map((e) => e['path']), contains('functions.codebases.purchases'),
+        expect(errors.map((e) => e['path']), contains('firebase.functions.codebases.purchases'),
             reason: 'source "$bad" should be rejected');
       }
     });
@@ -195,10 +195,130 @@ functions:
         stage: { A: "1" }
 ''');
       final messages = errors.map((e) => '${e['path']} ${e['message']}').join('\n');
-      expect(messages, contains('functions.projects.a'));
+      expect(messages, contains('firebase.projects.a'));
       expect(messages, contains('blank'));
       expect(messages, contains("already used by 'b'"));
       expect(messages, contains("'stage' is not declared"));
+    });
+  });
+
+  group('validate command — firebase block (REQ-RULE-00030/00080)', () {
+    late Directory tempDir;
+    setUp(() => tempDir = Directory.systemTemp.createTempSync('validate_fb_test_'));
+    tearDown(() => tempDir.deleteSync(recursive: true));
+
+    Future<Map<String, List<Map<String, dynamic>>>> issuesFor(
+      String yaml, {
+      Map<String, String> files = const {},
+    }) async {
+      _writeValidAnnspec(tempDir);
+      final f = File('${tempDir.path}/annspec.yaml');
+      f.writeAsStringSync(f.readAsStringSync() + yaml);
+      files.forEach((name, content) {
+        File('${tempDir.path}/$name')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(content);
+      });
+      final result = await _runValidate(tempDir, ['--format', 'json']);
+      final json = jsonDecode(result.stdout.toString().trim()) as Map<String, dynamic>;
+      return {
+        'errors': (json['errors'] as List).cast<Map<String, dynamic>>(),
+        'warnings': (json['warnings'] as List).cast<Map<String, dynamic>>(),
+      };
+    }
+
+    String text(List<Map<String, dynamic>> issues) =>
+        issues.map((e) => '${e['path']} ${e['message']}').join('\n');
+
+    test('a valid firebase block (projects, functions, rules) adds no errors or deprecation warnings', () async {
+      final r = await issuesFor('''
+firebase:
+  projects:
+    prod: { project_id: my-app-prod }
+  functions:
+    codebases:
+      purchases: { source: ../shared/fn, project_params: { prod: { A: "1" } } }
+  rules:
+    firestore: { source: firestore.rules, indexes: firestore.indexes.json }
+    storage: { source: storage.rules, cors: storage.cors.json }
+''', files: {
+        'firestore.rules': 'x',
+        'firestore.indexes.json': '{}',
+        'storage.rules': 'x',
+        'storage.cors.json': '[{"origin":["*"],"method":["GET"]}]',
+      });
+      expect(r['errors'], isEmpty);
+      expect(text(r['warnings']!), isNot(contains('deprecated')));
+    });
+
+    test('the deprecated functions: forms warn and name the replacement', () async {
+      final r = await issuesFor('''
+functions:
+  projects:
+    prod: { project_id: p }
+  codebases:
+    c: {}
+''');
+      expect(r['errors'], isEmpty);
+      final warnings = text(r['warnings']!);
+      expect(warnings, contains('firebase.functions'));
+      expect(warnings, contains('firebase.projects'));
+    });
+
+    test('firebase.functions together with a top-level functions: is an error', () async {
+      final r = await issuesFor('''
+firebase:
+  functions:
+    codebases: { new: {} }
+functions:
+  codebases: { old: {} }
+''');
+      expect(text(r['errors']!), contains('both firebase.functions and a top-level functions: block'));
+    });
+
+    test('an alias that differs between firebase.projects and functions.projects is an error', () async {
+      final r = await issuesFor('''
+firebase:
+  projects:
+    prod: { project_id: p1 }
+functions:
+  projects:
+    prod: { project_id: OTHER }
+''');
+      expect(text(r['errors']!), contains('firebase.projects.prod'));
+      expect(text(r['errors']!), contains('differs from functions.projects.prod'));
+    });
+
+    test('a rules block with neither firestore nor storage is an error', () async {
+      final r = await issuesFor('firebase:\n  rules: {}\n');
+      expect(text(r['errors']!), contains('declare firestore, storage or both'));
+    });
+
+    test('rules files that do not exist are errors naming the path', () async {
+      final r = await issuesFor('firebase:\n  rules:\n    firestore: {}\n    storage: { cors: c.json }\n');
+      final errors = text(r['errors']!);
+      expect(errors, contains('firebase.rules.firestore.source'));
+      expect(errors, contains('firebase.rules.storage.source'));
+      expect(errors, contains('firebase.rules.storage.cors'));
+      expect(errors, contains('not found'));
+    });
+
+    test('rules paths must be relative with / separators', () async {
+      for (final bad in ['/abs/x.rules', r'C:/x.rules', r'sub\x.rules']) {
+        final r = await issuesFor(
+            'firebase:\n  rules:\n    firestore: { source: "${bad.replaceAll(r'\', r'\\')}" }\n');
+        expect(text(r['errors']!), contains('firebase.rules.firestore.source'), reason: bad);
+      }
+    });
+
+    test('a CORS file that is not a JSON array of objects is an error', () async {
+      for (final bad in ['{"origin":["*"]}', 'not json', '["x"]']) {
+        final r = await issuesFor(
+          'firebase:\n  rules:\n    storage: { cors: storage.cors.json }\n',
+          files: {'storage.rules': 'x', 'storage.cors.json': bad},
+        );
+        expect(text(r['errors']!), contains('firebase.rules.storage.cors'), reason: bad);
+      }
     });
   });
 }

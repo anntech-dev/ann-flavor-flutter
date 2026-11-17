@@ -1,4 +1,5 @@
 import '../model/ann_spec_model.dart';
+import 'firebase_resolver.dart';
 import 'id_name_resolver.dart';
 
 /// High-level resolver. Takes a parsed [AnnSpec] and returns all effective
@@ -13,6 +14,10 @@ import 'id_name_resolver.dart';
 ///   // From in-memory model (e.g. live UI data before saving to YAML)
 ///   final output = AnnSpecResolver.resolveAndroidFlavor(flavor, defaults, 'debug');
 class AnnSpecResolver {
+  /// Merged view of `firebase:` and the deprecated top-level `functions:`
+  /// (REQ-RULE-00090).
+  static ResolvedFirebase resolveFirebaseBlock(AnnSpec spec) => FirebaseResolver.resolve(spec);
+
   static const standardBuildTypes = ['debug', 'release', 'profile'];
 
   // ── Entry points ────────────────────────────────────────────────────────────

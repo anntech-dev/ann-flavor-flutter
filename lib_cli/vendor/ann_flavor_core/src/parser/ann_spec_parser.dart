@@ -25,12 +25,14 @@ class AnnSpecParser {
   static AnnSpec fromMap(Map<String, dynamic> raw) {
     final toolingMap = _map(raw, 'tooling');
     final functionsMap = _map(raw, 'functions');
+    final firebaseMap = _map(raw, 'firebase');
     return AnnSpec(
       app:    _parseAnnApp(_map(raw, 'app')),
       enabled:     raw['enabled'] as bool? ?? true,
       debugConfig: _parseDebugConfig(_map(raw, 'debug')),
       tooling:     toolingMap.isEmpty ? null : _parseTooling(toolingMap),
       functions:   functionsMap.isEmpty ? null : _parseFunctions(functionsMap),
+      firebase:    firebaseMap.isEmpty ? null : _parseFirebase(firebaseMap),
     );
   }
 
@@ -42,15 +44,57 @@ class AnnSpecParser {
         serviceAccount: pm['service_account']?.toString(),
       ));
     }),
-    codebases: _map(m, 'codebases').map((name, v) {
-      final cm = _asMap(v);
-      return MapEntry(name, FunctionsCodebase(
-        source: cm['source']?.toString() ?? 'functions',
-        params: _parseEnv(_map(cm, 'params')),
-        projectParams: _map(cm, 'project_params')
-            .map((alias, pv) => MapEntry(alias, _parseEnv(_asMap(pv)))),
+    codebases: _parseCodebases(_map(m, 'codebases')),
+  );
+
+  static Map<String, FunctionsCodebase> _parseCodebases(Map<String, dynamic> m) =>
+      m.map((name, v) {
+        final cm = _asMap(v);
+        return MapEntry(name, FunctionsCodebase(
+          source: cm['source']?.toString() ?? 'functions',
+          params: _parseEnv(_map(cm, 'params')),
+          projectParams: _map(cm, 'project_params')
+              .map((alias, pv) => MapEntry(alias, _parseEnv(_asMap(pv)))),
+        ));
+      });
+
+  // A child present in the YAML — even as `firestore:` or `firestore: {}` — is
+  // "enabled with defaults"; an absent child is null.
+  static FirebaseBlock _parseFirebase(Map<String, dynamic> m) => FirebaseBlock(
+    projects: _map(m, 'projects').map((alias, v) {
+      final pm = _asMap(v);
+      return MapEntry(alias, FirebaseProject(
+        projectId:      pm['project_id']?.toString(),
+        serviceAccount: pm['service_account']?.toString(),
+        storageBucket:  pm['storage_bucket']?.toString(),
       ));
     }),
+    functions: m.containsKey('functions')
+        ? FirebaseFunctions(codebases: _parseCodebases(_map(_map(m, 'functions'), 'codebases')))
+        : null,
+    rules: m.containsKey('rules') ? _parseRules(_map(m, 'rules')) : null,
+  );
+
+  static RulesConfig _parseRules(Map<String, dynamic> m) => RulesConfig(
+    firestore: m.containsKey('firestore')
+        ? (() {
+            final fm = _map(m, 'firestore');
+            return FirestoreRules(
+              source:   fm['source']?.toString() ?? 'firestore.rules',
+              indexes:  fm['indexes']?.toString(),
+              database: fm['database']?.toString(),
+            );
+          })()
+        : null,
+    storage: m.containsKey('storage')
+        ? (() {
+            final sm = _map(m, 'storage');
+            return StorageRules(
+              source: sm['source']?.toString() ?? 'storage.rules',
+              cors:   sm['cors']?.toString(),
+            );
+          })()
+        : null,
   );
 
   static ToolingConfig _parseTooling(Map<String, dynamic> m) => ToolingConfig(

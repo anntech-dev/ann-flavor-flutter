@@ -5,7 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
-import '../validators/functions_validator.dart';
+import '../validators/firebase_validator.dart';
 import '../validators/testspec_validator.dart';
 
 const _androidOnlyBuildTypeFields = [
@@ -111,7 +111,7 @@ class ValidateCommand extends Command<void> {
 
     _checkFirebaseIntegration(spec, errors, warnings);
     _checkDeprecatedFirebaseFields(rawDoc, errors);
-    _checkFunctions(spec, errors);
+    _checkFirebaseBlock(spec, projectRoot, errors, warnings);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -127,16 +127,28 @@ class ValidateCommand extends Command<void> {
     if (errors.isNotEmpty || testspecResult.errors.isNotEmpty) exitCode = 1;
   }
 
-  // ── Firebase Functions (REQ-FUNC-00020, REQ-FUNC-00070) ───────────────────
+  // ── Firebase block: projects, functions, rules (REQ-FUNC-00020, REQ-FUNC-00070,
+  //    REQ-RULE-00030, REQ-RULE-00080) ─────────────────────────────────────────
 
-  void _checkFunctions(core.AnnSpec spec, List<_Issue> errors) {
-    final fn = spec.functions;
-    if (fn == null) return;
-    for (final problem in FunctionsValidator.validate(fn)) {
-      final split = problem.indexOf(': ');
-      errors.add(split < 0
-          ? _Issue('functions', problem)
-          : _Issue(problem.substring(0, split), problem.substring(split + 2)));
+  void _checkFirebaseBlock(
+    core.AnnSpec spec,
+    String projectRoot,
+    List<_Issue> errors,
+    List<_Issue> warnings,
+  ) {
+    final issues = FirebaseValidator.validate(core.AnnSpecResolver.resolveFirebaseBlock(spec), projectRoot);
+    _Issue split(String problem, String fallbackPath) {
+      final i = problem.indexOf(': ');
+      return i < 0
+          ? _Issue(fallbackPath, problem)
+          : _Issue(problem.substring(0, i), problem.substring(i + 2));
+    }
+
+    for (final problem in issues.errors) {
+      errors.add(split(problem, 'firebase'));
+    }
+    for (final problem in issues.warnings) {
+      warnings.add(split(problem, 'firebase'));
     }
   }
 
@@ -526,7 +538,9 @@ class ValidateCommand extends Command<void> {
     for (final entry in node.entries) {
       final key = entry.key as String;
       final childPath = path.isEmpty ? key : '$path.$key';
-      if (key == 'firebase' && entry.value is YamlMap) {
+      // The top-level `firebase:` (projects, functions, rules — REQ-RULE-00010) is a
+      // different block from the per-flavor/build-type client config checked here.
+      if (key == 'firebase' && path.isNotEmpty && entry.value is YamlMap) {
         final fb = entry.value as YamlMap;
         if (fb.containsKey('file')) {
           errors.add(_Issue(

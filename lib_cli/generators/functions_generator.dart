@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
+import '../validators/firebase_validator.dart';
 import '../validators/functions_validator.dart';
 import 'functions_param_scanner.dart';
 
@@ -36,22 +37,27 @@ class FunctionsGenerator {
     Set<String>? onlyCodebases,
     bool skipSourceCheck = false,
   }) {
-    final fn = spec.functions;
+    final resolved = core.AnnSpecResolver.resolveFirebaseBlock(spec);
+    final fn = resolved.functions;
     if (fn == null || fn.codebases.isEmpty) {
       throw FunctionsPrepareException(
-          'annspec.yaml has no functions.codebases — nothing to prepare.');
+          'annspec.yaml has no firebase.functions.codebases — nothing to prepare.');
     }
-    if (fn.projects.isEmpty) {
+    if (resolved.projects.isEmpty) {
       throw FunctionsPrepareException(
-          'annspec.yaml has no functions.projects — declare at least one Firebase project.');
+          'annspec.yaml has no firebase.projects — declare at least one Firebase project.');
     }
 
-    final errors = <String>[...FunctionsValidator.validate(fn)];
+    final errors = <String>[
+      ...FirebaseValidator.conflictMessages(resolved),
+      ...FirebaseValidator.validateProjects(resolved),
+      ...FunctionsValidator.validate(resolved),
+    ];
     final warnings = <String>[];
 
-    if (firebaseProject != null && !fn.projects.containsKey(firebaseProject)) {
+    if (firebaseProject != null && !resolved.projects.containsKey(firebaseProject)) {
       errors.add("Unknown functions project '$firebaseProject'. "
-          'Declared: ${fn.projects.keys.join(', ')}');
+          'Declared: ${resolved.projects.keys.join(', ')}');
     }
     final unknownCodebases =
         (onlyCodebases ?? const <String>{}).where((c) => !fn.codebases.containsKey(c)).toList();
@@ -61,7 +67,7 @@ class FunctionsGenerator {
     }
     if (errors.isNotEmpty) throw FunctionsPrepareException(errors.join('\n'));
 
-    final aliases = firebaseProject == null ? fn.projects.keys.toList() : [firebaseProject];
+    final aliases = firebaseProject == null ? resolved.projects.keys.toList() : [firebaseProject];
 
     // Plan every codebase first so any problem is reported before anything is written.
     final plans = <String, _Plan>{};
@@ -82,7 +88,7 @@ class FunctionsGenerator {
         final values = {...codebase.params, ...?codebase.projectParams[alias]};
         _checkValues(name, alias, values, errors);
         if (scan != null) _checkAgainstSource(name, alias, values, scan, errors, warnings);
-        envs[fn.projects[alias]!.projectId!.trim()] = values;
+        envs[resolved.projects[alias]!.projectId!.trim()] = values;
       }
       if (scan != null && scan.unchecked > 0) {
         warnings.add('functions.codebases.$name: ${scan.unchecked} param declaration(s) use a '

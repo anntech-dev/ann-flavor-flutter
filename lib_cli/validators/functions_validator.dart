@@ -1,42 +1,28 @@
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 
-/// Semantic checks for the top-level `functions:` block (REQ-FUNC-00020,
-/// REQ-FUNC-00070). Structural unknown-key checks stay in the cores'
+/// Semantic checks for the functions codebases (REQ-FUNC-00020,
+/// REQ-FUNC-00070), over the resolved `firebase` view (REQ-RULE-00090). Structural unknown-key checks stay in the cores'
 /// strict-mode checkers; this covers rules that need the whole block.
 class FunctionsValidator {
   static final _driveLetter = RegExp(r'^[A-Za-z]:');
 
-  /// Returns one message per problem; empty when the block is valid.
-  static List<String> validate(core.FunctionsConfig fn) {
+  /// Codebase checks over the resolved `firebase` view; one message per problem,
+  /// empty when valid. Project checks live in [FirebaseValidator.validateProjects].
+  static List<String> validate(core.ResolvedFirebase resolved) {
     final problems = <String>[];
-
-    final seenIds = <String, String>{};
-    fn.projects.forEach((alias, project) {
-      final id = project.projectId?.trim() ?? '';
-      if (id.isEmpty) {
-        problems.add("functions.projects.$alias: project_id is missing or blank");
-        return;
-      }
-      final other = seenIds[id];
-      if (other != null) {
-        problems.add(
-            "functions.projects.$alias: project_id '$id' is already used by '$other' "
-            '(both would write the same .env file)');
-      } else {
-        seenIds[id] = alias;
-      }
-    });
+    final fn = resolved.functions;
+    if (fn == null) return problems;
 
     fn.codebases.forEach((name, codebase) {
       final sourceProblem = sourceProblemFor(codebase.source);
       if (sourceProblem != null) {
-        problems.add("functions.codebases.$name: source '${codebase.source}' $sourceProblem");
+        problems.add("firebase.functions.codebases.$name: source '${codebase.source}' $sourceProblem");
       }
       for (final alias in codebase.projectParams.keys) {
-        if (!fn.projects.containsKey(alias)) {
+        if (!resolved.projects.containsKey(alias)) {
           problems.add(
-              "functions.codebases.$name.project_params: '$alias' is not declared under "
-              'functions.projects (declared: ${fn.projects.keys.join(', ')})');
+              "firebase.functions.codebases.$name.project_params: '$alias' is not declared under "
+              'firebase.projects (declared: ${resolved.projects.keys.join(', ')})');
         }
       }
     });

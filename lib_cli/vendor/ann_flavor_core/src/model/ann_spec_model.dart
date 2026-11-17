@@ -6,6 +6,7 @@ class AnnSpec {
   final DebugConfig debugConfig;
   final ToolingConfig? tooling;
   final FunctionsConfig? functions;
+  final FirebaseBlock? firebase;
 
   const AnnSpec({
     this.app = const AnnApp(),
@@ -13,6 +14,7 @@ class AnnSpec {
     this.debugConfig = const DebugConfig(),
     this.tooling,
     this.functions,
+    this.firebase,
   });
 
   /// Whether flavor [flavorKey] has an entry under `app.<platformKey>.flavor`
@@ -73,6 +75,56 @@ class FunctionsConfig {
   final Map<String, FunctionsCodebase> codebases;
 
   const FunctionsConfig({this.projects = const {}, this.codebases = const {}});
+}
+
+// ─── Firebase (REQ-RULE-00010 — top-level, non-cascading) ────────────────────
+//
+// One parent key for everything Firebase: shared projects, functions codebases
+// and rules. The top-level `functions:` block above is the deprecated form;
+// AnnSpecResolver.resolveFirebaseBlock merges both into one view (REQ-RULE-00030).
+
+class FirebaseProject {
+  final String? projectId;
+  final String? serviceAccount;
+  final String? storageBucket;
+
+  const FirebaseProject({this.projectId, this.serviceAccount, this.storageBucket});
+}
+
+class FirebaseFunctions {
+  final Map<String, FunctionsCodebase> codebases;
+
+  const FirebaseFunctions({this.codebases = const {}});
+}
+
+class FirestoreRules {
+  final String source;
+  final String? indexes;
+  final String? database;
+
+  const FirestoreRules({this.source = 'firestore.rules', this.indexes, this.database});
+}
+
+class StorageRules {
+  final String source;
+  final String? cors;
+
+  const StorageRules({this.source = 'storage.rules', this.cors});
+}
+
+class RulesConfig {
+  final FirestoreRules? firestore;
+  final StorageRules? storage;
+
+  const RulesConfig({this.firestore, this.storage});
+}
+
+class FirebaseBlock {
+  final Map<String, FirebaseProject> projects;
+  final FirebaseFunctions? functions;
+  final RulesConfig? rules;
+
+  const FirebaseBlock({this.projects = const {}, this.functions, this.rules});
 }
 
 class AnnApp {

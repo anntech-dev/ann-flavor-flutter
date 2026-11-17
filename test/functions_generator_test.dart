@@ -346,4 +346,90 @@ functions:
       expect(result.written['purchases'], hasLength(2));
     });
   });
+
+  group('firebase block (plan 044)', () {
+    const newSpec = '''
+firebase:
+  projects:
+    prod:
+      project_id: my-app-prod
+    demo:
+      project_id: my-app-demo
+  functions:
+    codebases:
+      purchases:
+        source: functions
+        params:
+          RC_ENTITLEMENT_IDS: "pro,premium"
+        project_params:
+          prod: { RC_PROJECT_ID: proj1234 }
+          demo: { RC_PROJECT_ID: proj_demo }
+''';
+
+    test('the new firebase: form writes the same files as the legacy functions: form', () {
+      writeSource();
+      final fromNew = FunctionsGenerator.prepare(spec(newSpec), root.path);
+      final newFiles = snapshot('build/functions/purchases');
+
+      Directory('${root.path}/build').deleteSync(recursive: true);
+      final fromLegacy = FunctionsGenerator.prepare(spec(_baseSpec), root.path);
+
+      expect(fromNew.written, fromLegacy.written);
+      expect(snapshot('build/functions/purchases'), newFiles);
+    });
+
+    test('firebase.functions together with a top-level functions: block is rejected', () {
+      writeSource();
+      const mixed = '''
+firebase:
+  functions:
+    codebases:
+      purchases: { project_params: { prod: { A: "1" } } }
+functions:
+  projects:
+    prod: { project_id: my-app-prod }
+''';
+      expect(
+        () => FunctionsGenerator.prepare(spec(mixed), root.path),
+        throwsA(isA<FunctionsPrepareException>()
+            .having((e) => e.message, 'message', contains('both firebase.functions and a top-level functions: block'))),
+      );
+    });
+
+    test('a conflicting alias is reported before anything is written', () {
+      writeSource();
+      const conflict = '''
+firebase:
+  projects:
+    prod: { project_id: p1 }
+  functions:
+    codebases:
+      purchases: {}
+functions:
+  projects:
+    prod: { project_id: OTHER }
+''';
+      expect(
+        () => FunctionsGenerator.prepare(spec(conflict), root.path),
+        throwsA(isA<FunctionsPrepareException>()
+            .having((e) => e.message, 'message', contains('differs from functions.projects.prod'))),
+      );
+      expect(exists('build'), isFalse);
+    });
+
+    test('says firebase.projects when no project is declared', () {
+      writeSource();
+      const noProjects = '''
+firebase:
+  functions:
+    codebases:
+      purchases: {}
+''';
+      expect(
+        () => FunctionsGenerator.prepare(spec(noProjects), root.path),
+        throwsA(isA<FunctionsPrepareException>()
+            .having((e) => e.message, 'message', contains('no firebase.projects'))),
+      );
+    });
+  });
 }
