@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.2
+
+**Fixed:** Generating web icons no longer changes your own `web/` folder. Before, `generate-icons` replaced `web/favicon.png`, deleted the files in `web/icons/` and reset the colors in `web/manifest.json`. Your `web/` folder is now set aside while the icons are made and put back afterwards, even if something fails. The icons still end up in `web_flavors/<flavor>/icons/`. If an earlier run was interrupted and left a `web.ann-backup` folder behind, the command now stops and tells you how to restore it.
+
 ## 1.8.1
 
 **Fixed:** 1.8.0 could not be published because of a development-only check, so it never reached pub.dev. 1.8.1 has everything described under 1.8.0 (the `functions:` section and the `functions-prepare` command) with no change in behavior. If you were waiting for 1.8.0, upgrade to 1.8.1.
