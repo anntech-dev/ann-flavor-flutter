@@ -34,7 +34,8 @@ class LinksDartGenerator {
       ..writeln('// GENERATED — do not edit manually.')
       ..writeln('// Run: dart run ann_flutter_flavor sync')
       ..writeln('//')
-      ..writeln('// Deep link facts from annspec.yaml (links:). See the Deep Links page of the guide.')
+      ..writeln(
+          '// Deep link facts from annspec.yaml (links:). See the Deep Links page of the guide.')
       ..writeln('const Map<String, Object?> annLinks = {')
       ..writeln("  'flavors': {");
 
@@ -47,17 +48,235 @@ class LinksDartGenerator {
         ..writeln("      'pathPrefix': ${quote(f.pathPrefix!)},")
         ..writeln("      'alsoHandles': ${_list(f.alsoHandles)},")
         ..writeln("      'platforms': ${_list(f.platforms)},");
-      if (f.androidId != null) buf.writeln("      'androidId': ${quote(f.androidId!)},");
-      if (f.iosBundleId != null) buf.writeln("      'iosBundleId': ${quote(f.iosBundleId!)},");
-      if (appleId != null && appleId.isNotEmpty) buf.writeln("      'appleId': ${quote(appleId)},");
+      if (f.androidId != null)
+        buf.writeln("      'androidId': ${quote(f.androidId!)},");
+      if (f.iosBundleId != null)
+        buf.writeln("      'iosBundleId': ${quote(f.iosBundleId!)},");
+      if (appleId != null && appleId.isNotEmpty)
+        buf.writeln("      'appleId': ${quote(appleId)},");
       buf.writeln('    },');
     }
 
     buf
       ..writeln('  },')
-      ..writeln('};');
+      ..writeln('};')
+      ..writeln();
+    _writeTypedLayer(buf, spec, links);
     return buf.toString();
   }
+
+  static const _reserved = {
+    'abstract',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'covariant',
+    'default',
+    'deferred',
+    'do',
+    'dynamic',
+    'else',
+    'enum',
+    'export',
+    'extends',
+    'extension',
+    'external',
+    'factory',
+    'false',
+    'final',
+    'finally',
+    'for',
+    'function',
+    'get',
+    'hide',
+    'if',
+    'implements',
+    'import',
+    'in',
+    'interface',
+    'is',
+    'late',
+    'library',
+    'mixin',
+    'new',
+    'null',
+    'of',
+    'on',
+    'operator',
+    'part',
+    'required',
+    'rethrow',
+    'return',
+    'set',
+    'show',
+    'static',
+    'super',
+    'switch',
+    'sync',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'typedef',
+    'var',
+    'void',
+    'while',
+    'with',
+    'yield',
+  };
+
+  /// The enum value name of a flavor key: lowerCamelCase over `_` and `-`, safe as a Dart identifier
+  /// (a name that starts with a digit or is a Dart keyword gets a `flavor` prefix).
+  static String enumName(String key) {
+    final parts =
+        key.split(RegExp(r'[_\-]+')).where((w) => w.isNotEmpty).toList();
+    var name = parts.isEmpty
+        ? 'flavor'
+        : parts.first +
+            parts
+                .skip(1)
+                .map((w) => w[0].toUpperCase() + w.substring(1))
+                .join();
+    if (RegExp(r'^[0-9]').hasMatch(name) || _reserved.contains(name)) {
+      name = 'flavor${name[0].toUpperCase()}${name.substring(1)}';
+    }
+    return name;
+  }
+
+  static void _writeTypedLayer(
+      StringBuffer buf, core.AnnSpec spec, core.ResolvedLinks links) {
+    final names = links.flavors.keys.toList()..sort();
+    buf
+      ..writeln('// ── Typed layer ────────────────────────────────────')
+      ..writeln('// Built from the same values as annLinks. No imports.')
+      ..writeln('enum AnnLinkFlavorKey {');
+    for (final n in names) {
+      buf.writeln('  ${enumName(n)},');
+    }
+    buf
+      ..writeln('}')
+      ..writeln()
+      ..write(_classSource)
+      ..writeln()
+      ..writeln(
+          'const Map<AnnLinkFlavorKey, AnnLinkFlavor> annLinkFlavors = {');
+    for (final n in names) {
+      final f = links.flavors[n]!;
+      final appleId = spec.app.ios?.flavors[n]?.stores?.appStore?.appleId;
+      buf
+        ..writeln('  AnnLinkFlavorKey.${enumName(n)}: AnnLinkFlavor(')
+        ..writeln('    key: AnnLinkFlavorKey.${enumName(n)},')
+        ..writeln('    domain: ${quote(f.domain!)},')
+        ..writeln('    pathPrefix: ${quote(f.pathPrefix!)},')
+        ..writeln('    alsoHandles: ${_list(f.alsoHandles)},')
+        ..writeln('    platforms: ${_list(f.platforms)},');
+      if (f.androidId != null)
+        buf.writeln('    androidId: ${quote(f.androidId!)},');
+      if (f.iosBundleId != null)
+        buf.writeln('    iosBundleId: ${quote(f.iosBundleId!)},');
+      if (appleId != null && appleId.isNotEmpty)
+        buf.writeln('    appleId: ${quote(appleId)},');
+      buf.writeln('  ),');
+    }
+    buf
+      ..writeln('};')
+      ..writeln()
+      ..write(_functionsSource);
+  }
+
+  static const _classSource = r'''
+/// One flavor's deep link facts.
+class AnnLinkFlavor {
+  const AnnLinkFlavor({
+    required this.key,
+    required this.domain,
+    required this.pathPrefix,
+    this.alsoHandles = const [],
+    this.platforms = const [],
+    this.androidId,
+    this.iosBundleId,
+    this.appleId,
+  });
+
+  final AnnLinkFlavorKey key;
+  final String domain;
+  final String pathPrefix;
+  final List<String> alsoHandles;
+  final List<String> platforms;
+  final String? androidId;
+  final String? iosBundleId;
+  final String? appleId;
+
+  /// `https://<domain>`.
+  String get origin => 'https://$domain';
+
+  /// The https address of [path] under this flavor's own prefix; no [path] gives the prefix itself.
+  Uri uri([String path = '']) {
+    final tail = path.isEmpty || path.startsWith('/') ? path : '/$path';
+    return Uri.parse('$origin$pathPrefix$tail');
+  }
+
+  /// True for this flavor's own prefix and for the prefixes it also handles.
+  bool handlesPath(String path) =>
+      _annLinkMatches(pathPrefix, path) || alsoHandles.any((p) => _annLinkMatches(p, path));
+
+  /// [platform] is `'android'`, `'ios'` or `'web'`.
+  bool existsOn(String platform) => platforms.contains(platform);
+}
+''';
+
+  static const _functionsSource = r'''
+bool _annLinkMatches(String prefix, String path) {
+  final end = path.indexOf(RegExp(r'[?#]'));
+  final clean = end < 0 ? path : path.substring(0, end);
+  return clean == prefix || clean.startsWith('$prefix/');
+}
+
+/// The flavor for [key].
+AnnLinkFlavor linkFlavorFor(AnnLinkFlavorKey key) => annLinkFlavors[key]!;
+
+/// The flavor whose own prefix owns [path] (the longest prefix wins), or null. `alsoHandles` is not
+/// consulted: it says who may open a link, not who owns it.
+AnnLinkFlavor? linkFlavorOwning(String path) {
+  AnnLinkFlavor? best;
+  for (final f in annLinkFlavors.values) {
+    if (_annLinkMatches(f.pathPrefix, path) && (best == null || f.pathPrefix.length > best.pathPrefix.length)) {
+      best = f;
+    }
+  }
+  return best;
+}
+
+/// Like [linkFlavorOwning] for a full address: only https on the flavor's domain counts.
+AnnLinkFlavor? linkFlavorOwningUri(Uri uri) {
+  if (uri.scheme != 'https') return null;
+  final host = uri.host.toLowerCase();
+  AnnLinkFlavor? best;
+  for (final f in annLinkFlavors.values) {
+    if (f.domain == host &&
+        _annLinkMatches(f.pathPrefix, uri.path) &&
+        (best == null || f.pathPrefix.length > best.pathPrefix.length)) {
+      best = f;
+    }
+  }
+  return best;
+}
+
+/// The flavor whose Android id or iOS bundle id is [id], or null.
+AnnLinkFlavor? linkFlavorByApplicationId(String id) {
+  for (final f in annLinkFlavors.values) {
+    if (f.androidId == id || f.iosBundleId == id) return f;
+  }
+  return null;
+}
+''';
 
   /// A Dart single-quoted string literal for any value: `\`, `'`, `$` and line breaks escaped.
   static String quote(String value) {
@@ -70,5 +289,6 @@ class LinksDartGenerator {
     return "'$escaped'";
   }
 
-  static String _list(List<String> values) => '[${values.map(quote).join(', ')}]';
+  static String _list(List<String> values) =>
+      '[${values.map(quote).join(', ')}]';
 }

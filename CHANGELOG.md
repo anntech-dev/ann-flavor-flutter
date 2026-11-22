@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.0
+
+**Added:** `lib/generated/ann_links.g.dart` now also has ready-made helpers, so you do not read the map by hand. `linkFlavorOwningUri(uri)` (or `linkFlavorOwning(path)`) tells which flavor owns an incoming link, `flavor.handlesPath(path)` says whether this app should open it (its own prefix or one it also handles), `flavor.uri('/result/42')` builds the link to share, and `AnnLinkFlavorKey` names the flavors without typing strings. The `annLinks` map is unchanged, so nothing you already wrote breaks. See "Typed helpers" on the Deep Links page of the guide.
+
 ## 1.11.0
 
 **Added:** With a `links:` section, `sync` now also writes `lib/generated/ann_links.g.dart`: the domain, path prefixes, app ids and platforms of each linked flavor as plain Dart data. Your code, or a link package, can read which prefix belongs to which flavor (for example that `/ta` links are Tamil's), which prefix to use when it builds a link to share, and the store ids, instead of writing them a second time. Without a `links:` section nothing is written. See "Reading the links in Dart" on the Deep Links page of the guide.

@@ -77,6 +77,205 @@ void main() => print(jsonEncode(annLinks));
     return jsonDecode(r.stdout.toString().trim()) as Map<String, dynamic>;
   }
 
+  /// Runs [body] (Dart statements ending in `return <jsonable>;`) against the generated file.
+  Future<Object?> run(String body) async {
+    File('${root.path}/check.dart').writeAsStringSync("""
+import 'dart:convert';
+import 'lib/generated/ann_links.g.dart';
+
+Object? probe() {
+$body
+}
+
+void main() => print(jsonEncode(probe()));
+""");
+    final r = await Process.run('dart', ['run', '${root.path}/check.dart'], workingDirectory: _packageRoot);
+    expect(r.exitCode, 0, reason: '${r.stdout}\n${r.stderr}');
+    return jsonDecode(r.stdout.toString().trim());
+  }
+
+  group('typed layer (REQ-LINK-00140 → 00190)', () {
+    setUp(() => generate(_spec()));
+
+    test('the enum has one value per flavor, sorted, and annLinkFlavors agrees with annLinks', () async {
+      expect(await run(r'''
+  return {
+    'keys': AnnLinkFlavorKey.values.map((k) => k.name).toList(),
+    'agree': annLinkFlavors.entries.every((e) {
+      final m = (annLinks['flavors'] as Map)[e.key.name] as Map;
+      final f = e.value;
+      return m['domain'] == f.domain && m['pathPrefix'] == f.pathPrefix &&
+          m['androidId'] == f.androidId && m['iosBundleId'] == f.iosBundleId && m['appleId'] == f.appleId &&
+          '${m['alsoHandles']}' == '${f.alsoHandles}' && '${m['platforms']}' == '${f.platforms}';
+    }),
+    'count': annLinkFlavors.length,
+  };
+'''), {'keys': ['free', 'tamil'], 'agree': true, 'count': 2});
+    });
+
+    test('fields, origin, uri and existsOn', () async {
+      expect(await run('''
+  final free = linkFlavorFor(AnnLinkFlavorKey.free);
+  final tamil = linkFlavorFor(AnnLinkFlavorKey.tamil);
+  return {
+    'key': free.key.name,
+    'domain': free.domain,
+    'origin': free.origin,
+    'uri': free.uri('/result/42').toString(),
+    'uriBare': free.uri().toString(),
+    'uriNoSlash': free.uri('result').toString(),
+    'freeIos': free.existsOn('ios'),
+    'tamilIos': tamil.existsOn('ios'),
+    'tamilAndroid': tamil.existsOn('android'),
+    'tamilIosBundle': tamil.iosBundleId,
+    'tamilApple': tamil.appleId,
+    'freeApple': free.appleId,
+  };
+'''), {
+        'key': 'free',
+        'domain': 'links.example.com',
+        'origin': 'https://links.example.com',
+        'uri': 'https://links.example.com/en/result/42',
+        'uriBare': 'https://links.example.com/en',
+        'uriNoSlash': 'https://links.example.com/en/result',
+        'freeIos': true,
+        'tamilIos': false,
+        'tamilAndroid': true,
+        'tamilIosBundle': null,
+        'tamilApple': null,
+        'freeApple': '1234567890',
+      });
+    });
+
+    test('linkFlavorOwning matches at segment boundaries and ignores query, fragment and a trailing slash', () async {
+      expect(await run('''
+  String? o(String p) => linkFlavorOwning(p)?.key.name;
+  return {
+    'en': o('/en'), 'enX': o('/en/x'), 'enSlash': o('/en/'), 'enQuery': o('/en?a=1'), 'enFrag': o('/en/x#top'),
+    'ta': o('/ta/quiz'), 'entry': o('/entry'), 'none': o('/other'), 'root': o('/'), 'empty': o(''), 'upper': o('/EN'),
+  };
+'''), {
+        'en': 'free', 'enX': 'free', 'enSlash': 'free', 'enQuery': 'free', 'enFrag': 'free',
+        'ta': 'tamil', 'entry': null, 'none': null, 'root': null, 'empty': null, 'upper': null,
+      });
+    });
+
+    test('handlesPath honours alsoHandles, linkFlavorOwning does not', () async {
+      expect(await run('''
+  final free = linkFlavorFor(AnnLinkFlavorKey.free);
+  final tamil = linkFlavorFor(AnnLinkFlavorKey.tamil);
+  return {
+    'freeTa': free.handlesPath('/ta/quiz'),
+    'freeEn': free.handlesPath('/en/x'),
+    'freeOther': free.handlesPath('/other'),
+    'tamilEn': tamil.handlesPath('/en/x'),
+    'tamilTa': tamil.handlesPath('/ta'),
+    'freeTaEntry': free.handlesPath('/tax'),
+    'owner': linkFlavorOwning('/ta/quiz')?.key.name,
+  };
+'''), {'freeTa': true, 'freeEn': true, 'freeOther': false, 'tamilEn': false, 'tamilTa': true, 'freeTaEntry': false, 'owner': 'tamil'});
+    });
+
+    test('linkFlavorOwningUri needs https and the links domain (host compared in lower case)', () async {
+      expect(await run('''
+  String? o(String u) => linkFlavorOwningUri(Uri.parse(u))?.key.name;
+  return {
+    'ok': o('https://links.example.com/ta/x'),
+    'upperHost': o('https://LINKS.example.com/en'),
+    'http': o('http://links.example.com/en'),
+    'otherHost': o('https://evil.example.com/en'),
+    'noPath': o('https://links.example.com'),
+    'custom': o('myapp://links.example.com/en'),
+  };
+'''), {'ok': 'tamil', 'upperHost': 'free', 'http': null, 'otherHost': null, 'noPath': null, 'custom': null});
+    });
+
+    test('linkFlavorByApplicationId finds by Android id or iOS bundle id', () async {
+      expect(await run('''
+  return {
+    'free': linkFlavorByApplicationId('com.example.lt')?.key.name,
+    'tamil': linkFlavorByApplicationId('com.example.lt.tamil')?.key.name,
+    'none': linkFlavorByApplicationId('com.other')?.key.name,
+  };
+'''), {'free': 'free', 'tamil': 'tamil', 'none': null});
+    });
+
+    test('the longest prefix wins when prefixes are nested (only possible across domains: the spec rejects it on one)', () async {
+      generate(_spec(links: '''
+links:
+  flavors:
+    free:
+      domain: a.example.com
+      path_prefix: /l
+      android:
+        sha256_fingerprints: ["${_fp(1)}"]
+    tamil:
+      domain: b.example.com
+      path_prefix: /l/ta
+      android:
+        sha256_fingerprints: ["${_fp(2)}"]
+'''));
+      expect(await run("  return {'a': linkFlavorOwning('/l/ta/x')?.key.name, 'b': linkFlavorOwning('/l/x')?.key.name, 'c': linkFlavorOwning('/l/tax')?.key.name};"),
+          {'a': 'tamil', 'b': 'free', 'c': 'free'});
+    });
+
+    test('flavors on different domains: linkFlavorOwningUri tells them apart', () async {
+      generate(_spec(links: '''
+links:
+  flavors:
+    free:
+      domain: a.example.com
+      path_prefix: /go
+      android:
+        sha256_fingerprints: ["${_fp(1)}"]
+    tamil:
+      domain: b.example.com
+      path_prefix: /go
+      android:
+        sha256_fingerprints: ["${_fp(2)}"]
+'''));
+      expect(await run('''
+  return {
+    'a': linkFlavorOwningUri(Uri.parse('https://a.example.com/go/x'))?.key.name,
+    'b': linkFlavorOwningUri(Uri.parse('https://b.example.com/go/x'))?.key.name,
+  };
+'''), {'a': 'free', 'b': 'tamil'});
+    });
+
+    test('a flavor name with a dash still gives a valid enum value', () async {
+      File('${root.path}/annspec.yaml').writeAsStringSync('''
+app:
+  android:
+    default:
+      id: com.example.lt
+    flavor:
+      my-app:
+        name: "My"
+links:
+  default:
+    domain: links.example.com
+    android:
+      sha256_fingerprints: ["${_fp(1)}"]
+  flavors:
+    my-app:
+      path_prefix: /my
+''');
+      LinksDartGenerator.generate(AnnspecReader.read(root.path), root.path);
+      expect(await run("  return AnnLinkFlavorKey.values.map((k) => k.name).toList();"), ['myApp']);
+    });
+
+    test('the output passes dart analyze with no issue', () async {
+      final r = await Process.run('dart', ['analyze', '--fatal-infos', out().path], workingDirectory: _packageRoot);
+      expect(r.exitCode, 0, reason: '${r.stdout}\n${r.stderr}');
+    });
+
+    test('a second run writes nothing and leaves identical bytes', () {
+      final before = out().readAsStringSync();
+      expect(LinksDartGenerator.generate(AnnspecReader.read(root.path), root.path), isNull);
+      expect(out().readAsStringSync(), before);
+    });
+  });
+
   group('content', () {
     test('holds every linked flavor with its facts (the Love Tester case)', () async {
       expect(generate(_spec()), 'lib/generated/ann_links.g.dart');
@@ -109,7 +308,9 @@ void main() => print(jsonEncode(annLinks));
       final tamil = ((await evaluate())['flavors'] as Map)['tamil'] as Map;
       expect(tamil.containsKey('iosBundleId'), isFalse);
       expect(tamil.containsKey('appleId'), isFalse);
-      expect(out().readAsStringSync(), isNot(contains('null')));
+      final text = out().readAsStringSync();
+      expect(text.substring(0, text.indexOf('// ── Typed layer')), isNot(contains('null')));
+      expect(text, isNot(contains("iosBundleId: 'null")));
     });
 
     test('appleId is omitted when the iOS flavor has no App Store id', () async {
