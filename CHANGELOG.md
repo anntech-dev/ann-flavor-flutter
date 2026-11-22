@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10.1
+
+**Fixed:** 1.10.0 could not be published because of a development-only check, so it never reached pub.dev. 1.10.1 has everything described under 1.10.0 (the `links:` section for deep links) with no change in behavior. If you were waiting for 1.10.0, upgrade to 1.10.1.
+
+## 1.10.0
+
+**Added:** Deep links from `annspec.yaml`. A new optional `links:` section makes links such as `https://links.example.com/en/test` open your app when it is installed. Give each app its own path (`/en`, `/ta`), list the signing fingerprints, and `sync` writes the iPhone setting for each app, and, for the repository that serves your domain, the two files Google and Apple read (`assetlinks.json` and `apple-app-site-association`) with the right headers. Several apps on one domain end up in the same files. An app can also open another app's links (`also_handles`). `sync` and `validate` stop with a clear message for a missing or malformed fingerprint or Team ID, a bad domain or path, or two apps whose paths overlap. Nothing changes for apps without a `links:` section. See the new Deep Links page in the guide.
+
+**Fixed:** Preparing one web flavor no longer leaves another flavor's deep link files behind in `web/`, so a separate site (for example an admin site) does not ship them.
+
 ## 1.9.1
 
 **Fixed:** `sync` and `upgrade` no longer stop with "`projects` is not a recognised firebase field" when `annspec.yaml` has the top-level `firebase:` section from 1.9.0. `validate` already accepted it; `sync` ran its own check that did not.

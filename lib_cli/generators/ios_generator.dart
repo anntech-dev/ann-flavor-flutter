@@ -55,7 +55,7 @@ class IosGenerator {
         iosPlatform.flavors.values.any((f) => f.admob?.gmsAdsId != null);
     _ensureXcconfigBackedKeys(iosDir, hasAdmob);
     _generateInfoPlists(projectRoot, iosDir, annDir, iosPlatform);
-    _generateEntitlements(projectRoot, iosDir, annDir, iosPlatform);
+    _generateEntitlements(projectRoot, iosDir, annDir, iosPlatform, core.AnnSpecResolver.resolveLinks(spec));
     _generateExportOptions(projectRoot, annDir, iosPlatform);
   }
 
@@ -527,6 +527,7 @@ class IosGenerator {
     Directory iosDir,
     Directory annDir,
     core.IosPlatform platform,
+    core.ResolvedLinks links,
   ) {
     final entitlementsDir = Directory(p.join(annDir.path, 'Entitlements'));
     // Delete-and-regenerate, same rationale as xcconfig/Info.plist above.
@@ -548,7 +549,8 @@ class IosGenerator {
     // shipping ios/ann-Runner.entitlements with no annspec.yaml
     // entitlements: cascade anywhere must still generate output, or its
     // contribution would be silently dropped.
-    if (!_anyFlavorHasEntitlements(platform) && pluginContributed.isEmpty) return;
+    final anyLinks = platform.flavors.keys.any((f) => _linksDomain(links, f) != null);
+    if (!_anyFlavorHasEntitlements(platform) && pluginContributed.isEmpty && !anyLinks) return;
     entitlementsDir.createSync(recursive: true);
 
     if (pluginContributed.isNotEmpty) {
@@ -570,7 +572,8 @@ class IosGenerator {
         final resolvedLevels = levels
             .map((level) => level == null ? null : _resolveEntitlementsLevel(projectRoot, level))
             .toList();
-        final merged = core.IosResolution.mergeEntitlements(resolvedLevels);
+        final cascade = core.IosResolution.mergeEntitlements(resolvedLevels);
+        final merged = _withLinksDomain(cascade, _linksDomain(links, flavorKey));
 
         // Opt-in per flavor/build-type too, same treatment as Info.plist —
         // no file for a combination whose own cascade is empty, even if
@@ -583,6 +586,30 @@ class IosGenerator {
         print('  ✓ Generated ios/ann/Entitlements/$fileName');
       }
     }
+  }
+
+  static const _associatedDomainsKey = 'com.apple.developer.associated-domains';
+
+  /// The `links:` domain for an iOS flavor, or null when the flavor has no entry, is not an
+  /// iOS flavor, or the block is invalid (sync stops on invalid blocks before this runs).
+  static String? _linksDomain(core.ResolvedLinks links, String flavorKey) {
+    if (links.errors.isNotEmpty) return null;
+    final f = links.flavors[flavorKey];
+    if (f == null || !f.platforms.contains('ios')) return null;
+    return f.domain;
+  }
+
+  /// REQ-LINK-00050: adds `applinks:<domain>` to the associated-domains list, merging with
+  /// any list the entitlements cascade already carries; every other key is left as is.
+  static Map<String, dynamic> _withLinksDomain(Map<String, dynamic> cascade, String? domain) {
+    if (domain == null) return cascade;
+    final existing = cascade[_associatedDomainsKey];
+    final domains = {
+      if (existing is List) ...existing.map((e) => e.toString()),
+      'applinks:$domain',
+    }.toList()
+      ..sort();
+    return {...cascade, _associatedDomainsKey: domains};
   }
 
   static bool _anyFlavorHasEntitlements(core.IosPlatform platform) {

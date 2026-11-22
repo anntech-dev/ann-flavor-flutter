@@ -7,6 +7,7 @@ class AnnSpec {
   final ToolingConfig? tooling;
   final FunctionsConfig? functions;
   final FirebaseBlock? firebase;
+  final LinksConfig? links;
 
   const AnnSpec({
     this.app = const AnnApp(),
@@ -15,6 +16,7 @@ class AnnSpec {
     this.tooling,
     this.functions,
     this.firebase,
+    this.links,
   });
 
   /// Whether flavor [flavorKey] has an entry under `app.<platformKey>.flavor`
@@ -125,6 +127,48 @@ class FirebaseBlock {
   final RulesConfig? rules;
 
   const FirebaseBlock({this.projects = const {}, this.functions, this.rules});
+}
+
+// ─── Links (REQ-LINK-00010 — top-level, non-cascading) ────────────────────────
+
+class LinksAndroid {
+  final List<String> sha256Fingerprints;
+  final List<String> debugSha256Fingerprints;
+
+  const LinksAndroid({this.sha256Fingerprints = const [], this.debugSha256Fingerprints = const []});
+}
+
+class LinksIos {
+  final String? teamId;
+
+  const LinksIos({this.teamId});
+}
+
+class LinksDefault {
+  final String? domain;
+  final LinksAndroid? android;
+  final LinksIos? ios;
+
+  const LinksDefault({this.domain, this.android, this.ios});
+}
+
+class LinksFlavor {
+  final String? domain;
+  final String? pathPrefix;
+  final List<String> alsoHandles;
+  final LinksAndroid? android;
+  final LinksIos? ios;
+
+  const LinksFlavor({this.domain, this.pathPrefix, this.alsoHandles = const [], this.android, this.ios});
+}
+
+class LinksConfig {
+  final String? serveFrom;
+  final String? wellKnownDir;
+  final LinksDefault? defaults;
+  final Map<String, LinksFlavor> flavors;
+
+  const LinksConfig({this.serveFrom, this.wellKnownDir, this.defaults, this.flavors = const {}});
 }
 
 class AnnApp {

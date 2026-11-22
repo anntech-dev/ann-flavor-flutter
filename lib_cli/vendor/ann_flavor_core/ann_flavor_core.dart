@@ -4,5 +4,6 @@ export 'src/resolver/id_name_resolver.dart';
 export 'src/resolver/ann_spec_resolver.dart';
 export 'src/resolver/firebase_resolver.dart';
 export 'src/resolver/ios_resolution.dart';
+export 'src/resolver/links_resolver.dart';
 export 'src/validator/ann_spec_validator.dart';
 export 'src/validator/strict_mode_checker.dart';

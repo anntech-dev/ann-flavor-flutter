@@ -59,6 +59,7 @@ const _schema = <String, _ClassSchema>{
     'tooling': _Nested.object('ToolingConfig'),
     'functions': _Nested.object('FunctionsConfig'),
     'firebase': _Nested.object('FirebaseBlock'),
+    'links': _Nested.object('LinksConfig'),
   }),
   'AnnApp': _ClassSchema({
     'android': _Nested.object('AndroidPlatform'),
@@ -118,6 +119,31 @@ const _schema = <String, _ClassSchema>{
   'StorageRules': _ClassSchema({
     'source': null,
     'cors': null,
+  }),
+  'LinksConfig': _ClassSchema({
+    'serve_from': null,
+    'well_known_dir': null,
+    'default': _Nested.object('LinksDefault'),
+    'flavors': _Nested.map('LinksFlavor'),
+  }),
+  'LinksDefault': _ClassSchema({
+    'domain': null,
+    'android': _Nested.object('LinksAndroid'),
+    'ios': _Nested.object('LinksIos'),
+  }),
+  'LinksFlavor': _ClassSchema({
+    'domain': null,
+    'path_prefix': null,
+    'also_handles': null,
+    'android': _Nested.object('LinksAndroid'),
+    'ios': _Nested.object('LinksIos'),
+  }),
+  'LinksAndroid': _ClassSchema({
+    'sha256_fingerprints': null,
+    'debug_sha256_fingerprints': null,
+  }),
+  'LinksIos': _ClassSchema({
+    'team_id': null,
   }),
   'AnnIntegrations': _ClassSchema({
     'fastlane': null,

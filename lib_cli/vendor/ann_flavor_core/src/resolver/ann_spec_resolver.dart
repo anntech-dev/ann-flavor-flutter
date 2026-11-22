@@ -1,6 +1,7 @@
 import '../model/ann_spec_model.dart';
 import 'firebase_resolver.dart';
 import 'id_name_resolver.dart';
+import 'links_resolver.dart';
 
 /// High-level resolver. Takes a parsed [AnnSpec] and returns all effective
 /// (resolved) values for every flavor × build-type combination.
@@ -17,6 +18,9 @@ class AnnSpecResolver {
   /// Merged view of `firebase:` and the deprecated top-level `functions:`
   /// (REQ-RULE-00090).
   static ResolvedFirebase resolveFirebaseBlock(AnnSpec spec) => FirebaseResolver.resolve(spec);
+
+  /// The resolved `links:` block with its validation errors (REQ-LINK-00020, -00070).
+  static ResolvedLinks resolveLinks(AnnSpec spec) => LinksResolver.resolve(spec);
 
   static const standardBuildTypes = ['debug', 'release', 'profile'];
 

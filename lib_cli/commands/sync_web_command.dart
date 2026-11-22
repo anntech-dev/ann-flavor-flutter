@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
+import '../generators/links_generator.dart';
 import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
 
@@ -101,9 +102,37 @@ class SyncWebCommand extends Command<void> {
     outFile.writeAsStringSync('$json\n');
   }
 
+  /// web/ is shared by every flavor, so files a previous flavor copied in would otherwise
+  /// ship with this one. Deep link files belong only to the flavor whose folder holds them
+  /// (`links.serve_from`): remove the two generated files and the marked `_headers` block
+  /// first; the copy below puts them back for the serving flavor. Any other file in
+  /// web/.well-known, and any other line of `_headers`, is left alone.
+  void _clearStaleLinksFiles(String projectRoot) {
+    final wellKnown = Directory(p.join(projectRoot, 'web', '.well-known'));
+    for (final name in const ['assetlinks.json', 'apple-app-site-association']) {
+      final f = File(p.join(wellKnown.path, name));
+      if (f.existsSync()) f.deleteSync();
+    }
+    if (wellKnown.existsSync() && wellKnown.listSync().isEmpty) wellKnown.deleteSync();
+
+    final headers = File(p.join(projectRoot, 'web', '_headers'));
+    if (headers.existsSync()) {
+      final before = headers.readAsStringSync();
+      final after = LinksGenerator.stripHeaderBlock(before);
+      if (after != before) {
+        if (after.trim().isEmpty) {
+          headers.deleteSync();
+        } else {
+          headers.writeAsStringSync(after);
+        }
+      }
+    }
+  }
+
   void _copyToWeb(String projectRoot, String flavorKey) {
     final src = Directory('$projectRoot/web_flavors/$flavorKey');
     if (!src.existsSync()) return;
+    _clearStaleLinksFiles(projectRoot);
 
     for (final entity in src.listSync(recursive: true)) {
       if (entity is! File) continue;

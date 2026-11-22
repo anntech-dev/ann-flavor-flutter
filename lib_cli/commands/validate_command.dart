@@ -112,6 +112,7 @@ class ValidateCommand extends Command<void> {
     _checkFirebaseIntegration(spec, errors, warnings);
     _checkDeprecatedFirebaseFields(rawDoc, errors);
     _checkFirebaseBlock(spec, projectRoot, errors, warnings);
+    _checkLinks(spec, errors);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -129,6 +130,17 @@ class ValidateCommand extends Command<void> {
 
   // ── Firebase block: projects, functions, rules (REQ-FUNC-00020, REQ-FUNC-00070,
   //    REQ-RULE-00030, REQ-RULE-00080) ─────────────────────────────────────────
+
+  // ── links: block (REQ-LINK-00070) — the cores resolve and validate it ───────
+
+  void _checkLinks(core.AnnSpec spec, List<_Issue> errors) {
+    for (final problem in core.AnnSpecResolver.resolveLinks(spec).errors) {
+      final i = problem.indexOf(': ');
+      errors.add(i < 0
+          ? _Issue('links', problem)
+          : _Issue('links.${problem.substring(0, i)}', problem.substring(i + 2)));
+    }
+  }
 
   void _checkFirebaseBlock(
     core.AnnSpec spec,

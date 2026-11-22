@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../spec/annspec_reader.dart';
 import '../generators/dart_generator.dart';
 import '../generators/android_generator.dart';
 import '../generators/ios_generator.dart';
 import '../generators/firebase_generator.dart';
+import '../generators/links_generator.dart';
 import '../generators/fastlane_generator.dart';
 import '../generators/melos_generator.dart';
 
@@ -87,6 +89,27 @@ class SyncCommand extends Command<void> {
     // check for that, unlike the dedicated "Generate App Icons" action, which
     // pre-flight-checks the dependency and lets the user pick which flavors to
     // regenerate. Run that action explicitly when icons need regenerating.
+
+    // Step [links] — deep link files. Runs before the web step so sync-web copies the
+    // generated web_flavors/<flavor>/.well-known into web/.
+    if (spec.links != null) {
+      if (!jsonMode) print('\n[links] Generating deep link files...');
+      try {
+        final result = LinksGenerator.generate(spec, projectRoot);
+        if (!jsonMode) {
+          for (final w in result.written) {
+            print('  ✓ $w');
+          }
+          for (final w in result.warnings) {
+            print('  ⚠  $w');
+          }
+        }
+      } on StateError catch (e) {
+        stderr.writeln('  ✗ links: configuration error:\n  ${e.message}');
+        exitCode = 1;
+        return;
+      }
+    }
 
     // Step [web] — web flavors (delegated to sync-web subprocess per flavor)
     final webPlatform = spec.app.web;
@@ -338,6 +361,10 @@ class SyncCommand extends Command<void> {
       AnnspecReader.read(projectRoot);
       final rawDoc = loadYaml(File(specPath).readAsStringSync()) as YamlMap;
       _checkDeprecatedFirebaseFields(rawDoc, errors);
+      for (final problem in core.AnnSpecResolver.resolveLinks(AnnspecReader.read(projectRoot)).errors) {
+        final i = problem.indexOf(': ');
+        errors.add(i < 0 ? _Issue('links', problem) : _Issue('links.${problem.substring(0, i)}', problem.substring(i + 2)));
+      }
     } catch (e) {
       final msg = '$e'.replaceFirst('Exception: ', '');
       if (jsonMode) {

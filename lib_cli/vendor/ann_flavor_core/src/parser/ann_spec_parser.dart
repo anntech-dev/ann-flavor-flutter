@@ -26,6 +26,7 @@ class AnnSpecParser {
     final toolingMap = _map(raw, 'tooling');
     final functionsMap = _map(raw, 'functions');
     final firebaseMap = _map(raw, 'firebase');
+    final linksMap = _map(raw, 'links');
     return AnnSpec(
       app:    _parseAnnApp(_map(raw, 'app')),
       enabled:     raw['enabled'] as bool? ?? true,
@@ -33,8 +34,42 @@ class AnnSpecParser {
       tooling:     toolingMap.isEmpty ? null : _parseTooling(toolingMap),
       functions:   functionsMap.isEmpty ? null : _parseFunctions(functionsMap),
       firebase:    firebaseMap.isEmpty ? null : _parseFirebase(firebaseMap),
+      links:       linksMap.isEmpty ? null : _parseLinks(linksMap),
     );
   }
+
+  static LinksConfig _parseLinks(Map<String, dynamic> m) => LinksConfig(
+    serveFrom:    m['serve_from']?.toString(),
+    wellKnownDir: m['well_known_dir']?.toString(),
+    defaults: m.containsKey('default')
+        ? (() {
+            final d = _map(m, 'default');
+            return LinksDefault(
+              domain:  d['domain']?.toString(),
+              android: d.containsKey('android') ? _parseLinksAndroid(_map(d, 'android')) : null,
+              ios:     d.containsKey('ios') ? _parseLinksIos(_map(d, 'ios')) : null,
+            );
+          })()
+        : null,
+    flavors: _map(m, 'flavors').map((name, v) {
+      final f = _asMap(v);
+      return MapEntry(name, LinksFlavor(
+        domain:      f['domain']?.toString(),
+        pathPrefix:  f['path_prefix']?.toString(),
+        alsoHandles: _asList<dynamic>(f['also_handles']).map((e) => e.toString()).toList(),
+        android:     f.containsKey('android') ? _parseLinksAndroid(_map(f, 'android')) : null,
+        ios:         f.containsKey('ios') ? _parseLinksIos(_map(f, 'ios')) : null,
+      ));
+    }),
+  );
+
+  static LinksAndroid _parseLinksAndroid(Map<String, dynamic> m) => LinksAndroid(
+    sha256Fingerprints:      _asList<dynamic>(m['sha256_fingerprints']).map((e) => e.toString()).toList(),
+    debugSha256Fingerprints: _asList<dynamic>(m['debug_sha256_fingerprints']).map((e) => e.toString()).toList(),
+  );
+
+  static LinksIos _parseLinksIos(Map<String, dynamic> m) =>
+      LinksIos(teamId: m['team_id']?.toString());
 
   static FunctionsConfig _parseFunctions(Map<String, dynamic> m) => FunctionsConfig(
     projects: _map(m, 'projects').map((alias, v) {
