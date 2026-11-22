@@ -96,6 +96,17 @@ class LinksGenerator {
     return LinksResult(written, _redirectWarnings(target, projectRoot));
   }
 
+  /// What `sync` tells the user about the Android side, or null when no flavor has an Android
+  /// entry. The intent filter is not written by `sync`: the Gradle plugin patches each flavor's
+  /// AndroidManifest.xml when Gradle configures the project (an Android build or an IDE Gradle sync).
+  static String? androidNote(core.AnnSpec spec) {
+    final links = core.AnnSpecResolver.resolveLinks(spec);
+    final onAndroid = links.flavors.values.any((f) => f.platforms.contains('android'));
+    if (!onAndroid) return null;
+    return 'Android: the verified intent filter is written by the Gradle plugin at the next Android '
+        'build or Gradle sync (android/app/src/<flavor>/AndroidManifest.xml), not by sync.';
+  }
+
   /// Removes the marked `_headers` block (and nothing else) from [text]; used by `sync-web`
   /// so a flavor that does not serve the domain never inherits another flavor's block.
   static String stripHeaderBlock(String text) {

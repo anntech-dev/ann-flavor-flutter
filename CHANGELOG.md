@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.3
+
+**Changed:** `sync` now says, in its deep links step, that the Android link rule is not written by `sync`: the Gradle plugin writes it into each flavor's `AndroidManifest.xml` the next time Gradle configures the project (an Android build such as `flutter build apk`, or a Gradle sync in Android Studio). Before, the manifests looked unchanged right after `sync` and it seemed the Android side was missing. The Deep Links page of the guide says the same.
+
 ## 1.10.2
 
 **Fixed:** `validate` no longer shows two warnings that did not apply. It used to warn that a flavor with no `id` or `id_suffix` shares the default application ID, even when no other flavor has the same one (a main flavor that keeps the published ID next to suffixed flavors is normal). It now warns only when two flavors of a platform really end up with the same application ID. It also used to warn that no `service_account` was set for every build that names a Firebase `project_id`, although the default `sync` only writes `firebase.sh`, which you run while logged in. That warning now appears only with `validate --firebase-mode inline`, for when `sync` runs `flutterfire` itself, for example in CI.

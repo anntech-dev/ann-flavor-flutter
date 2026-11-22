@@ -103,6 +103,8 @@ class SyncCommand extends Command<void> {
           for (final w in result.warnings) {
             print('  ⚠  $w');
           }
+          final androidNote = LinksGenerator.androidNote(spec);
+          if (androidNote != null) print('  ℹ  $androidNote');
         }
       } on StateError catch (e) {
         stderr.writeln('  ✗ links: configuration error:\n  ${e.message}');

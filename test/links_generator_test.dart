@@ -376,4 +376,71 @@ links:
       expect(LinksGenerator.stripHeaderBlock('/a\n  X: 1\n'), '/a\n  X: 1\n');
     });
   });
+
+  group('the Android note printed by sync', () {
+    test('is given when a flavor has an Android entry', () {
+      File('${root.path}/annspec.yaml').writeAsStringSync(_loveTester());
+
+      final note = LinksGenerator.androidNote(AnnspecReader.read(root.path));
+
+      expect(note, isNotNull);
+      expect(note, contains('Gradle plugin'));
+      expect(note, contains('not by sync'));
+    });
+
+    test('is not given without a links: block or for an iOS-only entry', () {
+      File('${root.path}/annspec.yaml').writeAsStringSync('app:\n  android:\n    default:\n      id: com.example.n\n');
+      expect(LinksGenerator.androidNote(AnnspecReader.read(root.path)), isNull);
+
+      File('${root.path}/annspec.yaml').writeAsStringSync("""
+app:
+  ios:
+    default:
+      id: com.example.i
+    flavor:
+      main:
+        name: "Main"
+links:
+  flavors:
+    main:
+      domain: i.example.com
+      path_prefix: /go
+""");
+      expect(LinksGenerator.androidNote(AnnspecReader.read(root.path)), isNull);
+    });
+
+    test('sync prints it in its [links] step', () async {
+      File('${root.path}/annspec.yaml').writeAsStringSync("""
+enabled: true
+app:
+  android:
+    default:
+      id: com.example.lt
+    flavor:
+      free:
+        name: "Free"
+        main_file: "lib/main.dart"
+        version_name: "1.0.0"
+        version_code: 100
+links:
+  default:
+    domain: links.example.com
+    android:
+      sha256_fingerprints: ["$_f1"]
+  flavors:
+    free:
+      path_prefix: /en
+""");
+      final android = Directory('${root.path}/android')..createSync();
+      File('${android.path}/settings.gradle.kts').writeAsStringSync('pluginManagement { }\nplugins { }\n');
+      Directory('${android.path}/app').createSync();
+      File('${android.path}/app/build.gradle.kts').writeAsStringSync('plugins { }\n');
+
+      final result = await Process.run('dart', ['run', 'ann_flutter_flavor', 'sync', '--project', root.path],
+          workingDirectory: _packageRoot);
+
+      expect('${result.stdout}', contains('[links] Generating deep link files'));
+      expect('${result.stdout}', contains('the verified intent filter is written by the Gradle plugin'));
+    });
+  });
 }
