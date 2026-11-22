@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.2
+
+**Fixed:** `validate` no longer shows two warnings that did not apply. It used to warn that a flavor with no `id` or `id_suffix` shares the default application ID, even when no other flavor has the same one (a main flavor that keeps the published ID next to suffixed flavors is normal). It now warns only when two flavors of a platform really end up with the same application ID. It also used to warn that no `service_account` was set for every build that names a Firebase `project_id`, although the default `sync` only writes `firebase.sh`, which you run while logged in. That warning now appears only with `validate --firebase-mode inline`, for when `sync` runs `flutterfire` itself, for example in CI.
+
 ## 1.10.1
 
 **Fixed:** 1.10.0 could not be published because of a development-only check, so it never reached pub.dev. 1.10.1 has everything described under 1.10.0 (the `links:` section for deep links) with no change in behavior. If you were waiting for 1.10.0, upgrade to 1.10.1.

@@ -21,6 +21,9 @@ class _Issue {
 }
 
 class ValidateCommand extends Command<void> {
+  /// Set at the start of [run]; see the `firebase-mode` option.
+  String _firebaseMode = 'script';
+
   @override
   final name = 'validate';
 
@@ -29,6 +32,15 @@ class ValidateCommand extends Command<void> {
 
   ValidateCommand() {
     argParser.addOption('project', abbr: 'p', defaultsTo: '.');
+    argParser.addOption(
+      'firebase-mode',
+      allowed: ['script', 'inline'],
+      defaultsTo: 'script',
+      help: 'How `sync` will configure Firebase. "script" (default, same as sync) writes '
+          'lib/generated/scripts/firebase.sh for a person to run, so no service_account is needed. '
+          '"inline" runs flutterfire during sync, which needs a service_account for every build that '
+          'names a project_id; only then does validate warn about a missing one.',
+    );
     argParser.addOption(
       'format',
       allowed: ['human', 'json'],
@@ -39,6 +51,7 @@ class ValidateCommand extends Command<void> {
 
   @override
   Future<void> run() async {
+    _firebaseMode = argResults!['firebase-mode'] as String;
     final jsonMode = (argResults!['format'] as String) == 'json';
     // Wrap everything so stdout is always valid JSON in json mode.
     try {
@@ -107,6 +120,27 @@ class ValidateCommand extends Command<void> {
       final ios = spec.app.ios!;
       annspecFlavorKeys['ios'] = ios.flavors.keys.toSet();
       _validateIos(ios, rawApp?['ios'] as YamlMap?, errors, warnings);
+    }
+
+    if (spec.app.android != null) {
+      final a = spec.app.android!;
+      _checkSharedIds('android', {
+        for (final e in a.flavors.entries)
+          e.key: {
+            for (final bt in core.AnnSpecResolver.standardBuildTypes)
+              bt: core.AnnSpecResolver.resolveAndroidFlavor(e.value, a.defaults, bt).effectiveId,
+          },
+      }, warnings);
+    }
+    if (spec.app.ios != null) {
+      final i = spec.app.ios!;
+      _checkSharedIds('ios', {
+        for (final e in i.flavors.entries)
+          e.key: {
+            for (final bt in core.AnnSpecResolver.standardBuildTypes)
+              bt: core.AnnSpecResolver.resolveIosFlavor(e.value, i.defaults, bt).effectiveId,
+          },
+      }, warnings);
     }
 
     _checkFirebaseIntegration(spec, errors, warnings);
@@ -420,13 +454,34 @@ class ValidateCommand extends Command<void> {
             'or "id_suffix" to append to default.id.  Remove one.',
       ));
     }
-    if (id == null && !hasIdSuffix) {
-      warnings.add(_Issue(
-        basePath,
-        'Neither "id" nor "id_suffix" is set — this flavor will share the same bundle ID as default.',
-        fix: 'Add:  id_suffix: ".$flv"  to make the ID unique, '
-            'or  id: "com.example.$flv"  for a full override.',
-      ));
+  }
+
+  // ── Application IDs ────────────────────────────────────────────────────────
+
+  /// Warns when two flavors of one platform resolve to the same application ID in a build type:
+  /// the stores and the device treat them as one app. A flavor that simply uses the default ID
+  /// (no `id`, no `id_suffix`) is fine as long as no other flavor ends up with the same ID.
+  void _checkSharedIds(String platformKey, Map<String, Map<String, String>> idsByFlavor, List<_Issue> warnings) {
+    final names = idsByFlavor.keys.toList()..sort();
+    final reported = <String>{};
+    for (final bt in core.AnnSpecResolver.standardBuildTypes) {
+      final firstWithId = <String, String>{};
+      for (final flavor in names) {
+        final id = idsByFlavor[flavor]![bt];
+        if (id == null || id.isEmpty) continue;
+        final first = firstWithId[id];
+        if (first == null) {
+          firstWithId[id] = flavor;
+        } else if (reported.add('$flavor|$first|$id')) {
+          warnings.add(_Issue(
+            'app.$platformKey.flavor.$flavor',
+            'Flavor "$flavor" resolves to the same application ID as flavor "$first" ("$id", $bt build) — '
+                'the stores and devices will treat them as one app.',
+            fix: 'Add  id_suffix: ".$flavor"  to one of them to make the ID unique, '
+                'or  id: "com.example.$flavor"  for a full override.',
+          ));
+        }
+      }
     }
   }
 
@@ -459,7 +514,9 @@ class ValidateCommand extends Command<void> {
     }
     // project_id mode requires a service_account resolved via the 4-level cascade;
     // without it flutterfire configure will fail (REQ-FIRE-00100).
-    if (firebase.projectId != null && resolvedServiceAccount == null) {
+    // Only `--firebase-mode inline` runs flutterfire during sync; the default script mode hands the
+    // command to a person who is logged in, so a missing service_account is not a problem there.
+    if (_firebaseMode == 'inline' && firebase.projectId != null && resolvedServiceAccount == null) {
       warnings.add(_Issue(
         path,
         '"project_id" is set but no "service_account" resolves for this build — '

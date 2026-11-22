@@ -7,9 +7,11 @@ final _packageRoot = Directory.current.path.endsWith('/test')
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-Future<ProcessResult> _runValidate(Directory dir) => Process.run(
+// The cascade only matters when `sync` runs flutterfire itself, so these tests validate in inline
+// mode; the default (script) mode has its own tests at the end of this file.
+Future<ProcessResult> _runValidate(Directory dir, {String mode = 'inline'}) => Process.run(
       'dart',
-      ['run', 'ann_flutter_flavor', 'validate', '--project', dir.path],
+      ['run', 'ann_flutter_flavor', 'validate', '--project', dir.path, '--firebase-mode', mode],
       workingDirectory: _packageRoot,
     );
 
@@ -182,6 +184,43 @@ build_types:
       final result = await _runValidate(tempDir);
       expect(_hasServiceAccountWarning('${result.stdout}${result.stderr}'), isTrue,
           reason: 'Missing service_account should produce a warning');
+    });
+  });
+
+  group('service_account warning — firebase mode', () {
+    const releaseOnly = '''
+build_types:
+        release:
+          firebase:
+            project_id: "proj-prod"''';
+
+    test('script mode (the default) does not warn: the script is run by a person who is logged in', () async {
+      _writeSpec(tempDir, androidFirebase: releaseOnly, iosFirebase: '');
+      final result = await _runValidate(tempDir, mode: 'script');
+      expect(_hasServiceAccountWarning('${result.stdout}${result.stderr}'), isFalse,
+          reason: 'stdout: ${result.stdout}\nstderr: ${result.stderr}');
+    });
+
+    test('with no --firebase-mode given validate behaves like script mode', () async {
+      _writeSpec(tempDir, androidFirebase: releaseOnly, iosFirebase: '');
+      final result = await Process.run(
+        'dart', ['run', 'ann_flutter_flavor', 'validate', '--project', tempDir.path],
+        workingDirectory: _packageRoot,
+      );
+      expect(_hasServiceAccountWarning('${result.stdout}${result.stderr}'), isFalse);
+    });
+
+    test('inline mode still warns when no service_account resolves', () async {
+      _writeSpec(tempDir, androidFirebase: releaseOnly, iosFirebase: '');
+      final result = await _runValidate(tempDir, mode: 'inline');
+      expect(_hasServiceAccountWarning('${result.stdout}${result.stderr}'), isTrue);
+    });
+
+    test('an unknown mode is refused', () async {
+      _writeSpec(tempDir, androidFirebase: releaseOnly, iosFirebase: '');
+      final result = await _runValidate(tempDir, mode: 'batch');
+      // (the CLI reports usage errors on stdout/stderr and leaves the exit code alone)
+      expect('${result.stdout}${result.stderr}', contains('"batch" is not an allowed value for option "--firebase-mode"'));
     });
   });
 }
