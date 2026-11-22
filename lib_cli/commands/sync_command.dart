@@ -9,6 +9,7 @@ import '../generators/dart_generator.dart';
 import '../generators/android_generator.dart';
 import '../generators/ios_generator.dart';
 import '../generators/firebase_generator.dart';
+import '../generators/links_dart_generator.dart';
 import '../generators/links_generator.dart';
 import '../generators/fastlane_generator.dart';
 import '../generators/melos_generator.dart';
@@ -74,6 +75,18 @@ class SyncCommand extends Command<void> {
     // Step 1 — Dart codegen (fast, deterministic)
     if (!jsonMode) print('[1/7] Generating Dart flavor file...');
     DartGenerator.generate(spec, projectRoot);
+
+    // The facts of the links: block for Dart code (REQ-LINK-00100); written only with a block.
+    if (spec.links != null) {
+      try {
+        final written = LinksDartGenerator.generate(spec, projectRoot);
+        if (!jsonMode && written != null) print('  ✓ Generated $written');
+      } on StateError catch (e) {
+        stderr.writeln('  ✗ links: configuration error:\n  ${e.message}');
+        exitCode = 1;
+        return;
+      }
+    }
 
     // Step 2 — Android wiring (fast, deterministic)
     if (!jsonMode) print('\n[2/7] Wiring Android (Gradle plugin + defaultConfig)...');

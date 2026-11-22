@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.0
+
+**Added:** With a `links:` section, `sync` now also writes `lib/generated/ann_links.g.dart`: the domain, path prefixes, app ids and platforms of each linked flavor as plain Dart data. Your code, or a link package, can read which prefix belongs to which flavor (for example that `/ta` links are Tamil's), which prefix to use when it builds a link to share, and the store ids, instead of writing them a second time. Without a `links:` section nothing is written. See "Reading the links in Dart" on the Deep Links page of the guide.
+
 ## 1.10.3
 
 **Changed:** `sync` now says, in its deep links step, that the Android link rule is not written by `sync`: the Gradle plugin writes it into each flavor's `AndroidManifest.xml` the next time Gradle configures the project (an Android build such as `flutter build apk`, or a Gradle sync in Android Studio). Before, the manifests looked unchanged right after `sync` and it seemed the Android side was missing. The Deep Links page of the guide says the same.
