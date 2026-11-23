@@ -258,6 +258,100 @@ class AnnSpecResolver {
     };
   }
 
+  /// The sites of a web platform after resolution (REQ-WEB-00170), in the order they are written.
+  /// Account and branch fall back to `app.web.default.cloudflare`. A flavor's path is its
+  /// `base_href`; it is null for a flavor that does not exist or sets none. Nothing is validated
+  /// here, see [webSiteProblems].
+  static List<ResolvedWebSite> resolveWebSites(WebPlatform web) => [
+        for (final e in web.sites.entries)
+          ResolvedWebSite(
+            name: e.key,
+            projectName: e.value.cloudflare?.projectName,
+            accountId: e.value.cloudflare?.accountId ?? web.defaults.cloudflare?.accountId,
+            branch: e.value.cloudflare?.branch ?? web.defaults.cloudflare?.branch,
+            hubDir: e.value.hubDir,
+            flavors: [
+              for (final k in e.value.flavors)
+                ResolvedWebSiteFlavor(key: k, path: web.flavors[k]?.baseHref),
+            ],
+          ),
+      ];
+
+  /// The problems of the sites (REQ-WEB-00160) as `app.web.site.<name>.<field>: <problem>`, sites in
+  /// the order they are written and checks in a fixed order. The messages are the same in the Kotlin
+  /// and Ruby cores (shared fixtures).
+  static List<String> webSiteProblems(WebPlatform web) {
+    final problems = <String>[];
+    final claimedBy = <String, String>{};
+    for (final e in web.sites.entries) {
+      final name = e.key;
+      final site = e.value;
+      final pre = 'app.web.site.$name.';
+
+      if (site.flavors.isEmpty) problems.add('${pre}flavors: must list at least one web flavor');
+
+      final seen = <String>{};
+      final good = <(String, String)>[];
+      for (final key in site.flavors) {
+        final flavor = web.flavors[key];
+        if (flavor == null) {
+          problems.add('${pre}flavors: "$key" is not a web flavor');
+          continue;
+        }
+        if (!seen.add(key)) {
+          problems.add('${pre}flavors: "$key" is listed twice');
+          continue;
+        }
+        final owner = claimedBy[key];
+        if (owner != null && owner != name) {
+          problems.add('${pre}flavors: "$key" is already in site "$owner"');
+          continue;
+        }
+        claimedBy.putIfAbsent(key, () => name);
+        final href = flavor.baseHref;
+        if (href == null) {
+          problems.add('${pre}flavors: "$key" has no base_href');
+          continue;
+        }
+        if (href == '/') {
+          problems.add('${pre}flavors: "$key" has base_href "/", which is the site root; use another path');
+          continue;
+        }
+        good.add((key, href));
+      }
+      for (var i = 0; i < good.length; i++) {
+        for (var j = i + 1; j < good.length; j++) {
+          final (a, pa) = good[i];
+          final (b, pb) = good[j];
+          if (pa.startsWith(pb) || pb.startsWith(pa)) {
+            problems.add('${pre}flavors: "$a" ($pa) and "$b" ($pb) overlap');
+          }
+        }
+      }
+
+      final cf = site.cloudflare;
+      if ((cf?.projectName ?? '').trim().isEmpty) {
+        problems.add('${pre}cloudflare.project_name: must be set');
+      }
+      final mode = cf?.mode;
+      if (mode != null && mode != 'pages') {
+        problems.add('${pre}cloudflare.mode: must be "pages" (a site is one Pages deployment)');
+      }
+
+      final hub = site.hubDir;
+      if (hub != null) {
+        if (hub.isEmpty) {
+          problems.add('${pre}hub_dir: must not be empty');
+        } else if (hub.startsWith('/') || hub.contains(r'\') || (hub.length > 1 && hub[1] == ':')) {
+          problems.add('${pre}hub_dir: must be a relative path');
+        } else if (hub.split('/').contains('..')) {
+          problems.add('${pre}hub_dir: must not contain ".." segments');
+        }
+      }
+    }
+    return problems;
+  }
+
   static ResolvedBuildOutput resolveWebFlavor(
     WebFlavor flavor,
     WebDefault defaults,

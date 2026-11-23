@@ -260,6 +260,12 @@ const _schema = <String, _ClassSchema>{
   'WebPlatform': _ClassSchema({
     'default': _Nested.object('WebDefault'),
     'flavor': _Nested.map('WebFlavor'),
+    'site': _Nested.map('WebSite'),
+  }),
+  'WebSite': _ClassSchema({
+    'flavors': null,
+    'cloudflare': _Nested.object('CloudflareConfig'),
+    'hub_dir': null,
   }),
   'WebDefault': _ClassSchema({
     'id': null,

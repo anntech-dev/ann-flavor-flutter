@@ -437,8 +437,50 @@ class AppStoreCredentials {
 class WebPlatform {
   final WebDefault defaults;
   final Map<String, WebFlavor> flavors;
+  final Map<String, WebSite> sites;
 
-  const WebPlatform({this.defaults = const WebDefault(), this.flavors = const {}});
+  const WebPlatform({
+    this.defaults = const WebDefault(),
+    this.flavors = const {},
+    this.sites = const {},
+  });
+}
+
+/// One `app.web.site.<name>` block (REQ-WEB-00150): web flavors published as one site. The path of
+/// a flavor is its `base_href`; the site only lists the flavors.
+class WebSite {
+  final List<String> flavors;
+  final CloudflareConfig? cloudflare;
+  final String? hubDir;
+
+  const WebSite({this.flavors = const [], this.cloudflare, this.hubDir});
+}
+
+/// A site after resolution (REQ-WEB-00170): account and branch fall back to the web default.
+class ResolvedWebSite {
+  final String name;
+  final String? projectName;
+  final String? accountId;
+  final String? branch;
+  final String? hubDir;
+  final List<ResolvedWebSiteFlavor> flavors;
+
+  const ResolvedWebSite({
+    required this.name,
+    this.projectName,
+    this.accountId,
+    this.branch,
+    this.hubDir,
+    this.flavors = const [],
+  });
+}
+
+/// A flavor of a site with its path, which is null when the flavor is unknown or sets no `base_href`.
+class ResolvedWebSiteFlavor {
+  final String key;
+  final String? path;
+
+  const ResolvedWebSiteFlavor({required this.key, this.path});
 }
 
 class CloudflareConfig {

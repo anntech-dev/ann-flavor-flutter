@@ -321,6 +321,13 @@ class AnnSpecParser {
   static WebPlatform _parseWeb(Map<String, dynamic> m) => WebPlatform(
     defaults: _parseWebDefault(_map(m, 'default')),
     flavors:  _parseFlavors(m, 'flavor', _parseWebFlavor),
+    sites:    _parseFlavors(m, 'site', _parseWebSite),
+  );
+
+  static WebSite _parseWebSite(Map<String, dynamic> m) => WebSite(
+    flavors:    _asList<dynamic>(m['flavors']).map((e) => e.toString()).toList(),
+    cloudflare: _parseCloudflare(_map(m, 'cloudflare')),
+    hubDir:     m['hub_dir']?.toString(),
   );
 
   static WebDefault _parseWebDefault(Map<String, dynamic> m) => WebDefault(

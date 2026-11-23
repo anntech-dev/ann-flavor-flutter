@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.15.0
+
+**Added:** `validate` now checks web sites (`app.web.site`): it reports a site with no flavors, an unknown flavor, a flavor listed twice or in two sites, a flavor without a `base_href` or at `/`, equal or nested paths, a missing Cloudflare project, a `mode` other than `pages`, and a hub folder that does not exist, is a file, or holds a folder or file named like a flavor path. See "Publishing several flavors as one site" on the Web page of the guide.
+
+
 ## 1.14.0
 
 **Added:** Web flavors have two new optional build options, in a `build:` block on `app.web.default` or on one flavor: `pwa_strategy` (`none` turns Flutter's service worker off) and `canvaskit_base_url` (where the page loads the CanvasKit drawing engine from, so several flavors on one site can share one copy). `sync-web --scaffold-bootstrap` creates a `flutter_bootstrap.tmpl.js` that uses the address, and `{{canvaskit_base_url}}` is available in your web templates. `validate` and `sync-web` report a wrong value as an error and warn when an address is set but no template uses it. Flavors without the block are unchanged. See "Build options" on the Web page of the guide.
