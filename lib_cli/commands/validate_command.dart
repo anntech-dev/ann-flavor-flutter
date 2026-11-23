@@ -6,6 +6,7 @@ import 'package:yaml/yaml.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../generators/web_base_href_checker.dart';
 import '../generators/web_build_options_checker.dart';
+import '../generators/web_icon_checker.dart';
 import '../generators/web_site_checker.dart';
 import '../spec/annspec_reader.dart';
 import '../validators/firebase_validator.dart';
@@ -152,6 +153,7 @@ class ValidateCommand extends Command<void> {
     _checkLinks(spec, errors);
     _checkWebBaseHref(spec, projectRoot, errors, warnings);
     _checkWebBuildOptions(spec, projectRoot, errors, warnings);
+    _checkWebIcons(spec, projectRoot, warnings);
     _checkWebSites(spec, projectRoot, errors);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
@@ -192,6 +194,19 @@ class ValidateCommand extends Command<void> {
         // a problem in the web default's block is found once per flavor that inherits it
         if (!seen.add('${f.path}|${f.message}')) continue;
         (f.isError ? errors : warnings).add(_Issue(f.path, f.message, fix: f.fix));
+      }
+    }
+  }
+
+  void _checkWebIcons(core.AnnSpec spec, String projectRoot, List<_Issue> warnings) {
+    final web = spec.app.web;
+    if (web == null) return;
+    final seen = <String>{};
+    for (final key in web.flavors.keys) {
+      for (final f in WebIconChecker.check(projectRoot, key)) {
+        // a reference in web/ is found for every flavor that falls back to it: report it once
+        if (!seen.add('${f.path}|${f.message}')) continue;
+        warnings.add(_Issue(f.path, f.message, fix: f.fix));
       }
     }
   }

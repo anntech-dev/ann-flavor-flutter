@@ -57,7 +57,42 @@ class WebBuildOptionsChecker {
             'to the flavor\'s flutter_bootstrap.tmpl.js.',
       ));
     }
+    if (resolved.canvaskitBaseUrl != null) {
+      final page = _firstExisting(projectRoot, [
+        'web_flavors/$flavorKey/index.tmpl.html',
+        'web_flavors/$flavorKey/index.html',
+        'web/index.html',
+      ]);
+      if (page != null &&
+          !_loadsBootstrap(
+              File(p.join(projectRoot, page)).readAsStringSync())) {
+        findings.add(WebBuildOptionsFinding.warning(
+          'app.web.flavor.$flavorKey.build.canvaskit_base_url',
+          'canvaskit_base_url is "${resolved.canvaskitBaseUrl}" but the page $page does not load '
+              'flutter_bootstrap.js, the file that carries it, so the setting has no effect.',
+          fix:
+              'Use the page that "sync-web --flavor $flavorKey --scaffold-index" writes, or add '
+              '<script src="flutter_bootstrap.js" async></script> to the page.',
+        ));
+      }
+    }
     return findings;
+  }
+
+  static String? _firstExisting(String projectRoot, List<String> relatives) {
+    for (final r in relatives) {
+      if (File(p.join(projectRoot, r)).existsSync()) return r;
+    }
+    return null;
+  }
+
+  /// A `<script>` whose `src` is `flutter_bootstrap.js`; a tag inside an HTML comment does not count.
+  static bool _loadsBootstrap(String html) {
+    final live = html.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+    return RegExp(
+      r'''<script\b[^>]*\bsrc\s*=\s*["']?(?:\./)?flutter_bootstrap\.js["']?[\s>/]''',
+      caseSensitive: false,
+    ).hasMatch(live);
   }
 
   static bool _templatesUseVariable(String projectRoot, String flavorKey) {

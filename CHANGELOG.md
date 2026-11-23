@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.0
+
+**Fixed:** The web files that `sync-web --scaffold-manifest` and `--scaffold-index` write now match the rest of the tooling. The manifest and the page name the icons `generate-icons` writes (`Icon-192.png`, `Icon-512.png`, `Icon-maskable-192.png`, `Icon-maskable-512.png`); before, they named lowercase files that do not exist, so every icon was a 404 on a host that tells letter cases apart, such as Cloudflare Pages (a Mac hides it). The scaffolded page is now Flutter's current one and loads `flutter_bootstrap.js` (Flutter 3.22 or newer); before, it used the old loader, so a `canvaskit_base_url` was silently ignored. **Added:** `validate` and `sync-web` now warn about a flavor whose `canvaskit_base_url` its page does not load, and about an icon the manifest or page names that is missing or has another letter case. Existing templates are never rewritten: if you scaffolded before this version, the warnings tell you what to change. The guide and the requirement now list the generated icon names. See "Checks on the page and the icons" on the Web page of the guide.
+
+
 ## 1.15.0
 
 **Added:** `validate` now checks web sites (`app.web.site`): it reports a site with no flavors, an unknown flavor, a flavor listed twice or in two sites, a flavor without a `base_href` or at `/`, equal or nested paths, a missing Cloudflare project, a `mode` other than `pages`, and a hub folder that does not exist, is a file, or holds a folder or file named like a flavor path. See "Publishing several flavors as one site" on the Web page of the guide.

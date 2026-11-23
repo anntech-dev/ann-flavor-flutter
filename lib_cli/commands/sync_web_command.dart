@@ -9,6 +9,7 @@ import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
 import '../generators/web_base_href_checker.dart';
 import '../generators/web_build_options_checker.dart';
+import '../generators/web_icon_checker.dart';
 
 class SyncWebCommand extends Command<void> {
   @override
@@ -77,6 +78,9 @@ class SyncWebCommand extends Command<void> {
       // 1c. build options (REQ-WEB-00130)
       for (final f in WebBuildOptionsChecker.check(projectRoot, flavorKey, webPlatform))
         (isError: f.isError, path: f.path, message: f.message, fix: f.fix),
+      // 1d. icons the manifest and the page name (REQ-WEB-00260)
+      for (final f in WebIconChecker.check(projectRoot, flavorKey))
+        (isError: false, path: f.path, message: f.message, fix: f.fix),
     ];
     for (final f in findings.where((f) => !f.isError)) {
       print('  ⚠ ${f.path}: ${f.message}${f.fix == null ? '' : ' → ${f.fix}'}');
