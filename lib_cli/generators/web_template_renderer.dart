@@ -55,6 +55,8 @@ class WebTemplateRenderer {
     final themeColor = customWeb?['theme_color'] as String? ?? '#FFFFFF';
     final bgColor = customWeb?['background_color'] as String? ?? '#FFFFFF';
 
+    final baseHref = flavor == null ? '/' : core.AnnSpecResolver.resolveWebBaseHref(flavor);
+
     final outputDir = flavorKey.isNotEmpty ? 'build/web/$flavorKey' : 'build/web';
 
     return {
@@ -67,6 +69,7 @@ class WebTemplateRenderer {
       'theme_color': themeColor,
       'background_color': bgColor,
       'output_dir': outputDir,
+      'base_href': baseHref,
     };
   }
 

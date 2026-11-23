@@ -4,6 +4,7 @@ import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
+import '../generators/web_base_href_checker.dart';
 import '../spec/annspec_reader.dart';
 import '../validators/firebase_validator.dart';
 import '../validators/testspec_validator.dart';
@@ -147,6 +148,7 @@ class ValidateCommand extends Command<void> {
     _checkDeprecatedFirebaseFields(rawDoc, errors);
     _checkFirebaseBlock(spec, projectRoot, errors, warnings);
     _checkLinks(spec, errors);
+    _checkWebBaseHref(spec, projectRoot, errors, warnings);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -166,6 +168,16 @@ class ValidateCommand extends Command<void> {
   //    REQ-RULE-00030, REQ-RULE-00080) ─────────────────────────────────────────
 
   // ── links: block (REQ-LINK-00070) — the cores resolve and validate it ───────
+
+  void _checkWebBaseHref(core.AnnSpec spec, String projectRoot, List<_Issue> errors, List<_Issue> warnings) {
+    final web = spec.app.web;
+    if (web == null) return;
+    for (final e in web.flavors.entries) {
+      for (final f in WebBaseHrefChecker.check(projectRoot, e.key, e.value.baseHref)) {
+        (f.isError ? errors : warnings).add(_Issue(f.path, f.message, fix: f.fix));
+      }
+    }
+  }
 
   void _checkLinks(core.AnnSpec spec, List<_Issue> errors) {
     for (final problem in core.AnnSpecResolver.resolveLinks(spec).errors) {

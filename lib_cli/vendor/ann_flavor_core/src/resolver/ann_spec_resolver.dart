@@ -189,6 +189,27 @@ class AnnSpecResolver {
     );
   }
 
+  /// The path a web flavor is served from: its `base_href`, or `/` when it sets none (REQ-WEB-00030).
+  static String resolveWebBaseHref(WebFlavor flavor) => flavor.baseHref ?? '/';
+
+  /// The first rule [value] breaks (REQ-WEB-00020), or null when it is valid or not set.
+  /// The messages are the same in the Kotlin and Ruby cores (shared fixtures).
+  static String? webBaseHrefProblem(String? value) {
+    if (value == null) return null;
+    if (value.isEmpty) return 'must not be empty';
+    if (value.contains('://')) return 'must be a path such as /banking/, not a full address';
+    if (!value.startsWith('/')) return 'must start with "/"';
+    if (!value.endsWith('/')) return 'must end with "/"';
+    if (value.contains('//')) return 'must not contain "//"';
+    if (RegExp(r'[ \t\r\n\\?#]').hasMatch(value)) {
+      return 'must not contain spaces, backslashes, "?" or "#"';
+    }
+    if (value.split('/').any((s) => s == '.' || s == '..')) {
+      return 'must not contain "." or ".." segments';
+    }
+    return null;
+  }
+
   static ResolvedBuildOutput resolveWebFlavor(
     WebFlavor flavor,
     WebDefault defaults,

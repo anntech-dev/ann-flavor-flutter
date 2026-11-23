@@ -7,6 +7,7 @@ import '../spec/annspec_reader.dart';
 import '../generators/links_generator.dart';
 import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
+import '../generators/web_base_href_checker.dart';
 
 class SyncWebCommand extends Command<void> {
   @override
@@ -61,6 +62,19 @@ class SyncWebCommand extends Command<void> {
         manifestTemplate: scaffoldManifest,
         indexTemplate: scaffoldIndex,
       );
+    }
+
+    // 1b. base_href checks (REQ-WEB-00060): stop before copying anything when the build would fail
+    final findings = WebBaseHrefChecker.check(projectRoot, flavorKey, flavor.baseHref);
+    for (final f in findings.where((f) => !f.isError)) {
+      print('  ⚠ ${f.path}: ${f.message}${f.fix == null ? '' : ' → ${f.fix}'}');
+    }
+    final blocking = findings.where((f) => f.isError).toList();
+    if (blocking.isNotEmpty) {
+      for (final f in blocking) {
+        stderr.writeln('  ✗ ${f.path}: ${f.message}${f.fix == null ? '' : ' → ${f.fix}'}');
+      }
+      exit(1);
     }
 
     // 2. Render *.tmpl.* files

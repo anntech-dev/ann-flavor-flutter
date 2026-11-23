@@ -483,6 +483,7 @@ class WebFlavor {
   final int? versionCode;
   final String? mainFile;
   final String? icon;
+  final String? baseHref;
   final CloudflareConfig? cloudflare;
   final FirebaseConfig? firebase;
   final Map<String, BuildTypeConfig> buildTypes;
@@ -493,6 +494,7 @@ class WebFlavor {
     this.id, this.idSuffix = '', this.name, this.nameSuffix = '',
     this.versionName, this.versionCode, this.mainFile,
     this.icon,
+    this.baseHref,
     this.cloudflare,
     this.firebase,
     this.buildTypes = const {},

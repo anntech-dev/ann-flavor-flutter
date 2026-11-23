@@ -341,6 +341,7 @@ class AnnSpecParser {
     versionName: m['version_name']?.toString(), versionCode: _parseInt(m['version_code']),
     mainFile: m['main_file'] as String?,
     icon:     m['icon'] as String?,
+    baseHref: m['base_href'] as String?,
     cloudflare: _parseCloudflare(_map(m, 'cloudflare')),
     firebase:   m.containsKey('firebase') ? _parseFirebaseConfig(_map(m, 'firebase')) : null,
     buildTypes: _parseBuildTypeConfigs(_map(m, 'build_types')),

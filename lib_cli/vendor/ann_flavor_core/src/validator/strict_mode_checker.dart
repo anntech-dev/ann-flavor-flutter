@@ -283,6 +283,7 @@ const _schema = <String, _ClassSchema>{
     'version_code': null,
     'main_file': null,
     'icon': null,
+    'base_href': null,
     'cloudflare': _Nested.object('CloudflareConfig'),
     'firebase': _Nested.object('FirebaseConfig'),
     'build_types': _Nested.map('BuildTypeConfig'),
