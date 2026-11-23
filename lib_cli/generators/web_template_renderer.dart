@@ -56,6 +56,9 @@ class WebTemplateRenderer {
     final bgColor = customWeb?['background_color'] as String? ?? '#FFFFFF';
 
     final baseHref = flavor == null ? '/' : core.AnnSpecResolver.resolveWebBaseHref(flavor);
+    final canvaskitBaseUrl = flavor == null || platform == null
+        ? ''
+        : core.AnnSpecResolver.resolveWebBuildOptions(flavor, platform.defaults).canvaskitBaseUrl ?? '';
 
     final outputDir = flavorKey.isNotEmpty ? 'build/web/$flavorKey' : 'build/web';
 
@@ -70,6 +73,7 @@ class WebTemplateRenderer {
       'background_color': bgColor,
       'output_dir': outputDir,
       'base_href': baseHref,
+      'canvaskit_base_url': canvaskitBaseUrl,
     };
   }
 

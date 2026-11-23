@@ -328,6 +328,7 @@ class AnnSpecParser {
     versionName: m['version_name']?.toString(), versionCode: _parseInt(m['version_code']),
     mainFile:   m['main_file'] as String?,
     icon:       m['icon'] as String?,
+    build:      _parseWebBuild(_map(m, 'build')),
     cloudflare: _parseCloudflare(_map(m, 'cloudflare')),
     firebase:   m.containsKey('firebase') ? _parseFirebaseConfig(_map(m, 'firebase')) : null,
     buildTypes: _parseBuildTypeConfigs(_map(m, 'build_types')),
@@ -342,12 +343,21 @@ class AnnSpecParser {
     mainFile: m['main_file'] as String?,
     icon:     m['icon'] as String?,
     baseHref: m['base_href'] as String?,
+    build:    _parseWebBuild(_map(m, 'build')),
     cloudflare: _parseCloudflare(_map(m, 'cloudflare')),
     firebase:   m.containsKey('firebase') ? _parseFirebaseConfig(_map(m, 'firebase')) : null,
     buildTypes: _parseBuildTypeConfigs(_map(m, 'build_types')),
     custom:     _parseCustomConfig(_map(m, 'custom')),
     dartDefines: _parseDartDefines(_map(m, 'dart_defines')),
   );
+
+  static WebBuild? _parseWebBuild(Map<String, dynamic> m) {
+    if (m.isEmpty) return null;
+    return WebBuild(
+      pwaStrategy:      m['pwa_strategy']?.toString(),
+      canvaskitBaseUrl: m['canvaskit_base_url']?.toString(),
+    );
+  }
 
   static CloudflareConfig? _parseCloudflare(Map<String, dynamic> m) {
     if (m.isEmpty) return null;

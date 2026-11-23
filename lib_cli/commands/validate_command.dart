@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import '../vendor/ann_flavor_core/ann_flavor_core.dart' as core;
 import '../generators/web_base_href_checker.dart';
+import '../generators/web_build_options_checker.dart';
 import '../spec/annspec_reader.dart';
 import '../validators/firebase_validator.dart';
 import '../validators/testspec_validator.dart';
@@ -149,6 +150,7 @@ class ValidateCommand extends Command<void> {
     _checkFirebaseBlock(spec, projectRoot, errors, warnings);
     _checkLinks(spec, errors);
     _checkWebBaseHref(spec, projectRoot, errors, warnings);
+    _checkWebBuildOptions(spec, projectRoot, errors, warnings);
     final testspecResult = validateTestspec(
       findTestspecFile(projectRoot),
       projectRoot,
@@ -174,6 +176,19 @@ class ValidateCommand extends Command<void> {
     if (web == null) return;
     for (final e in web.flavors.entries) {
       for (final f in WebBaseHrefChecker.check(projectRoot, e.key, e.value.baseHref)) {
+        (f.isError ? errors : warnings).add(_Issue(f.path, f.message, fix: f.fix));
+      }
+    }
+  }
+
+  void _checkWebBuildOptions(core.AnnSpec spec, String projectRoot, List<_Issue> errors, List<_Issue> warnings) {
+    final web = spec.app.web;
+    if (web == null) return;
+    final seen = <String>{};
+    for (final key in web.flavors.keys) {
+      for (final f in WebBuildOptionsChecker.check(projectRoot, key, web)) {
+        // a problem in the web default's block is found once per flavor that inherits it
+        if (!seen.add('${f.path}|${f.message}')) continue;
         (f.isError ? errors : warnings).add(_Issue(f.path, f.message, fix: f.fix));
       }
     }

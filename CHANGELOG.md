@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.14.0
+
+**Added:** Web flavors have two new optional build options, in a `build:` block on `app.web.default` or on one flavor: `pwa_strategy` (`none` turns Flutter's service worker off) and `canvaskit_base_url` (where the page loads the CanvasKit drawing engine from, so several flavors on one site can share one copy). `sync-web --scaffold-bootstrap` creates a `flutter_bootstrap.tmpl.js` that uses the address, and `{{canvaskit_base_url}}` is available in your web templates. `validate` and `sync-web` report a wrong value as an error and warn when an address is set but no template uses it. Flavors without the block are unchanged. See "Build options" on the Web page of the guide.
+
+
 ## 1.13.0
 
 **Added:** A web flavor can now be served under a path, such as `https://example.com/banking/`. Set `base_href: /banking/` on the flavor in `annspec.yaml`. `{{base_href}}` is then available in your web templates, and a new web manifest uses it for `start_url` and `scope`. `validate` and `sync-web` now tell you before the build fails if the page has no `$FLUTTER_BASE_HREF` (an error) or the manifest points outside the path (a warning). Flavors without `base_href` are unchanged. See "Serving a flavor under a path" on the Web page of the guide.

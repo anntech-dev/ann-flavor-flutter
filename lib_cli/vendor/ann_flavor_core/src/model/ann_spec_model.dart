@@ -450,6 +450,15 @@ class CloudflareConfig {
   const CloudflareConfig({this.projectName, this.accountId, this.branch, this.mode});
 }
 
+/// The `build:` block of a web default or flavor (REQ-WEB-00080): options for `flutter build web`
+/// and the bootstrap file. Both fields are optional and cascade flavor → default.
+class WebBuild {
+  final String? pwaStrategy;
+  final String? canvaskitBaseUrl;
+
+  const WebBuild({this.pwaStrategy, this.canvaskitBaseUrl});
+}
+
 class WebDefault {
   final String? id;
   final String? name;
@@ -457,6 +466,7 @@ class WebDefault {
   final int? versionCode;
   final String? mainFile;
   final String? icon;
+  final WebBuild? build;
   final CloudflareConfig? cloudflare;
   final FirebaseConfig? firebase;
   final Map<String, BuildTypeConfig> buildTypes;
@@ -466,6 +476,7 @@ class WebDefault {
   const WebDefault({
     this.id, this.name, this.versionName, this.versionCode, this.mainFile,
     this.icon,
+    this.build,
     this.cloudflare,
     this.firebase,
     this.buildTypes = const {},
@@ -484,6 +495,7 @@ class WebFlavor {
   final String? mainFile;
   final String? icon;
   final String? baseHref;
+  final WebBuild? build;
   final CloudflareConfig? cloudflare;
   final FirebaseConfig? firebase;
   final Map<String, BuildTypeConfig> buildTypes;
@@ -495,6 +507,7 @@ class WebFlavor {
     this.versionName, this.versionCode, this.mainFile,
     this.icon,
     this.baseHref,
+    this.build,
     this.cloudflare,
     this.firebase,
     this.buildTypes = const {},

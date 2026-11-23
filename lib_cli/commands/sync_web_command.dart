@@ -8,6 +8,7 @@ import '../generators/links_generator.dart';
 import '../generators/web_template_renderer.dart';
 import '../generators/web_scaffold_generator.dart';
 import '../generators/web_base_href_checker.dart';
+import '../generators/web_build_options_checker.dart';
 
 class SyncWebCommand extends Command<void> {
   @override
@@ -29,7 +30,10 @@ class SyncWebCommand extends Command<void> {
           help: 'Scaffold manifest.tmpl.json if not present.')
       ..addFlag('scaffold-index',
           defaultsTo: false,
-          help: 'Scaffold index.tmpl.html if not present.');
+          help: 'Scaffold index.tmpl.html if not present.')
+      ..addFlag('scaffold-bootstrap',
+          defaultsTo: false,
+          help: 'Scaffold flutter_bootstrap.tmpl.js (loads CanvasKit from build.canvaskit_base_url) if not present.');
   }
 
   @override
@@ -38,6 +42,7 @@ class SyncWebCommand extends Command<void> {
     final projectRoot = p.canonicalize(argResults!['project'] as String);
     final scaffoldManifest = argResults!['scaffold-manifest'] as bool;
     final scaffoldIndex = argResults!['scaffold-index'] as bool;
+    final scaffoldBootstrap = argResults!['scaffold-bootstrap'] as bool;
 
     final spec = AnnspecReader.read(projectRoot);
 
@@ -55,17 +60,24 @@ class SyncWebCommand extends Command<void> {
     }
 
     // 1. Scaffold
-    if (scaffoldManifest || scaffoldIndex) {
+    if (scaffoldManifest || scaffoldIndex || scaffoldBootstrap) {
       print('  Scaffolding web_flavors/$flavorKey/...');
       WebScaffoldGenerator(projectRoot).scaffold(
         flavorKey,
         manifestTemplate: scaffoldManifest,
         indexTemplate: scaffoldIndex,
+        bootstrapTemplate: scaffoldBootstrap,
       );
     }
 
     // 1b. base_href checks (REQ-WEB-00060): stop before copying anything when the build would fail
-    final findings = WebBaseHrefChecker.check(projectRoot, flavorKey, flavor.baseHref);
+    final findings = <({bool isError, String path, String message, String? fix})>[
+      for (final f in WebBaseHrefChecker.check(projectRoot, flavorKey, flavor.baseHref))
+        (isError: f.isError, path: f.path, message: f.message, fix: f.fix),
+      // 1c. build options (REQ-WEB-00130)
+      for (final f in WebBuildOptionsChecker.check(projectRoot, flavorKey, webPlatform))
+        (isError: f.isError, path: f.path, message: f.message, fix: f.fix),
+    ];
     for (final f in findings.where((f) => !f.isError)) {
       print('  ⚠ ${f.path}: ${f.message}${f.fix == null ? '' : ' → ${f.fix}'}');
     }

@@ -10,6 +10,7 @@ class WebScaffoldGenerator {
     String flavorKey, {
     bool manifestTemplate = false,
     bool indexTemplate = false,
+    bool bootstrapTemplate = false,
   }) {
     final dir = Directory('$projectRoot/web_flavors/$flavorKey');
     dir.createSync(recursive: true);
@@ -18,6 +19,11 @@ class WebScaffoldGenerator {
     if (manifestTemplate) {
       final f = File(p.join(dir.path, 'manifest.tmpl.json'));
       if (!f.existsSync()) f.writeAsStringSync(_manifestTemplate);
+    }
+
+    if (bootstrapTemplate) {
+      final f = File(p.join(dir.path, 'flutter_bootstrap.tmpl.js'));
+      if (!f.existsSync()) f.writeAsStringSync(_bootstrapTemplate);
     }
 
     if (indexTemplate) {
@@ -63,6 +69,22 @@ class WebScaffoldGenerator {
     }
   ]
 }
+''';
+
+  // Flutter's own placeholders ({{flutter_js}}, {{flutter_build_config}},
+  // {{flutter_service_worker_version}}) stay as written: sync-web renders only its own variables
+  // and flutter build fills the rest. An empty canvasKitBaseUrl is ignored by the loader.
+  static const _bootstrapTemplate = '''{{flutter_js}}
+{{flutter_build_config}}
+
+_flutter.loader.load({
+  serviceWorkerSettings: {
+    serviceWorkerVersion: {{flutter_service_worker_version}}
+  },
+  config: {
+    canvasKitBaseUrl: "{{canvaskit_base_url}}"
+  }
+});
 ''';
 
   static const _indexTemplate = '''<!DOCTYPE html>

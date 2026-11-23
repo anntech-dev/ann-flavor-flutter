@@ -210,6 +210,54 @@ class AnnSpecResolver {
     return null;
   }
 
+  /// The build options of a web flavor after the cascade flavor → default (REQ-WEB-00110). A field
+  /// that neither level sets is null. The values are returned as written, not validated.
+  static WebBuild resolveWebBuildOptions(WebFlavor flavor, WebDefault defaults) => WebBuild(
+        pwaStrategy: flavor.build?.pwaStrategy ?? defaults.build?.pwaStrategy,
+        canvaskitBaseUrl: flavor.build?.canvaskitBaseUrl ?? defaults.build?.canvaskitBaseUrl,
+      );
+
+  /// The rule a `pwa_strategy` value breaks (REQ-WEB-00090), or null when it is valid or not set.
+  /// The messages are the same in the Kotlin and Ruby cores (shared fixtures).
+  static String? webPwaStrategyProblem(String? value) {
+    if (value == null) return null;
+    return value == 'none' || value == 'offline-first' ? null : 'must be "none" or "offline-first"';
+  }
+
+  /// The first rule a `canvaskit_base_url` value breaks (REQ-WEB-00100), or null when it is valid or
+  /// not set.
+  static String? webCanvaskitBaseUrlProblem(String? value) {
+    if (value == null) return null;
+    if (value.isEmpty) return 'must not be empty';
+    final https = value.startsWith('https://');
+    if (value.contains('://') && !https) {
+      return 'must be a path such as /canvaskit/ or an https:// address';
+    }
+    if (!https && !value.startsWith('/')) return 'must start with "/" or "https://"';
+    if (!value.endsWith('/')) return 'must end with "/"';
+    final rest = https ? value.substring('https://'.length) : value;
+    if (https && (rest.isEmpty || rest.startsWith('/'))) return 'must include a host after "https://"';
+    if (rest.contains('//')) return 'must not contain "//"';
+    if (RegExp(r'[ \t\r\n\\?#]').hasMatch(value)) {
+      return 'must not contain spaces, backslashes, "?" or "#"';
+    }
+    if (value.split('/').any((s) => s == '.' || s == '..')) {
+      return 'must not contain "." or ".." segments';
+    }
+    return null;
+  }
+
+  /// The problems of a `build:` block as written, keyed by field name (`pwa_strategy`,
+  /// `canvaskit_base_url`); empty when the block is absent or valid.
+  static Map<String, String> webBuildProblems(WebBuild? build) {
+    final pwa = webPwaStrategyProblem(build?.pwaStrategy);
+    final url = webCanvaskitBaseUrlProblem(build?.canvaskitBaseUrl);
+    return {
+      if (pwa != null) 'pwa_strategy': pwa,
+      if (url != null) 'canvaskit_base_url': url,
+    };
+  }
+
   static ResolvedBuildOutput resolveWebFlavor(
     WebFlavor flavor,
     WebDefault defaults,
