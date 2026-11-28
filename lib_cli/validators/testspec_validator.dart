@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
+import 'testspec_v2_validator.dart';
 
 const knownPhoneTypes = {
   'ANDROID_PHONE', 'ANDROID_TABLET_7_INCH', 'ANDROID_TABLET_10_INCH',
   'ANDROID_TV', 'ANDROID_WEAR', 'ANDROID_SAMSUNG', 'ANDROID_AMAZON',
   'IOS_IPHONE_6_9_INCH', 'IOS_IPHONE_6_5_INCH', 'IOS_IPAD_13_INCH', 'APPLE_TV',
-  'IOS_IPHONE_6_7_INCH', 'IOS_IPAD_PRO_2GEN_12_9_INCH',
+  'IOS_IPHONE_6_7_INCH', 'IOS_IPAD_PRO_2GEN_12_9_INCH', 'IOS_IPHONE_6_3_INCH',
 };
 
 class TestspecIssue {
@@ -87,6 +88,20 @@ TestspecResult validateTestspec(
   if (rootMap is! YamlMap) {
     errors.add(TestspecIssue('annai_app_tests',
         "'annai_app_tests' must be a YAML mapping."));
+    return TestspecResult(present: true, specPath: specPath,
+        errors: errors, warnings: warnings, infos: infos);
+  }
+
+  final version = '${rootMap['version'] ?? 1}';
+  if (version == '2') {
+    final v2 = TestspecV2Validator(rootMap, projectRoot, annspecFlavorKeys)..validate();
+    return TestspecResult(present: true, specPath: specPath,
+        errors: v2.errors, warnings: v2.warnings, infos: v2.infos);
+  }
+  if (version != '1') {
+    errors.add(TestspecIssue('annai_app_tests.version',
+        'Unknown test spec version $version: versions 1 and 2 are known.',
+        fix: 'Set  version: 2, or remove the key for a version 1 file.'));
     return TestspecResult(present: true, specPath: specPath,
         errors: errors, warnings: warnings, infos: infos);
   }

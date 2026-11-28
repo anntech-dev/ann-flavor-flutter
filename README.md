@@ -18,7 +18,7 @@ Add to your Flutter app's `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  ann_flutter_flavor: ^1.16.0
+  ann_flutter_flavor: ^1.17.0
 ```
 
 ---
@@ -307,7 +307,20 @@ dart run ann_flutter_flavor validate -p ../my_flutter_app
 dart run ann_flutter_flavor validate --format json
 ```
 
-Checks `annspec.yaml` for errors and warnings without writing any files. Useful in CI.
+Checks `annspec.yaml` for errors and warnings without writing any files. When
+`anntestspec.yaml` is present it is checked too. Useful in CI.
+
+### validate-testspec
+
+```bash
+dart run ann_flutter_flavor validate-testspec
+dart run ann_flutter_flavor validate-testspec --format json
+```
+
+Checks `anntestspec.yaml`, the test spec read by the Fastlane plugin. Version 1 files (no `version`
+key) and version 2 files (`version: 2`: devices listed once with a screenshot class, flavors with
+their tests, devices and stores) each have their own rules. Exits 1 if the file is missing or has
+errors.
 
 ### doctor
 

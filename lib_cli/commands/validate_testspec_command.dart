@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:path/path.dart' as p;
+import '../spec/annspec_reader.dart';
 import '../validators/testspec_validator.dart';
 
 class ValidateTestspecCommand extends Command<void> {
@@ -45,7 +46,8 @@ class ValidateTestspecCommand extends Command<void> {
     }
 
     final testspecFile = findTestspecFile(projectRoot);
-    final result = validateTestspec(testspecFile, projectRoot);
+    final result = validateTestspec(testspecFile, projectRoot,
+        annspecFlavorKeys: AnnspecReader.testFlavorKeys(projectRoot));
 
     if (jsonMode) {
       _printJson(testspecFile.path, result);
